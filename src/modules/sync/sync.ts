@@ -8,7 +8,7 @@ import type { ChMatchSummary, ChMember, ChScorecard } from "@/modules/cricheroes
 import { extractTeamPerformance } from "@/modules/cricheroes/team-performance";
 import { reconcileMatchCharges } from "@/modules/finance/ledger";
 import { defaultMatchKind, isChargeableByDefault, matchOutcome } from "@/modules/finance/rules";
-import { getSettings, type Settings } from "@/modules/settings/settings";
+import { cricheroesTeam, getSettings, type Settings } from "@/modules/settings/settings";
 
 export type SyncSource = {
   teamMatches(teamId: number): Promise<ChMatchSummary[]>;
@@ -16,11 +16,14 @@ export type SyncSource = {
   scorecard(matchId: number): Promise<ChScorecard | null>;
 };
 
-export const liveSource: SyncSource = {
-  teamMatches: fetchTeamMatches,
-  teamMembers: fetchTeamMembers,
-  scorecard: fetchScorecard,
-};
+/** Reads the real CricHeroes site at `origin` (taken from the team link in Settings). */
+export function liveSource(origin: string): SyncSource {
+  return {
+    teamMatches: (teamId) => fetchTeamMatches(origin, teamId),
+    teamMembers: (teamId) => fetchTeamMembers(origin, teamId),
+    scorecard: (matchId) => fetchScorecard(origin, matchId),
+  };
+}
 
 export type SyncSummary = {
   matchesSeen: number;
@@ -38,7 +41,7 @@ const SCORECARD_REFRESH_DAYS = 3;
 
 export async function runCricheroesSync(
   trigger: "cron" | "manual",
-  source: SyncSource = liveSource,
+  sourceOverride?: SyncSource,
   db: DB = getDb(),
 ): Promise<{ runId: number; summary: SyncSummary }> {
   const [run] = await db.insert(syncRuns).values({ kind: "cricheroes", trigger }).returning();
@@ -55,7 +58,9 @@ export async function runCricheroesSync(
 
   try {
     const cfg = await getSettings(db);
-    const teamId = Number(cfg.team_id);
+    const team = cricheroesTeam(cfg);
+    const teamId = team.teamId;
+    const source = sourceOverride ?? liveSource(team.origin);
 
     // 1. Squad
     try {

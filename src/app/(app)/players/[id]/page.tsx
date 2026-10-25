@@ -10,10 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getDb } from "@/db";
 import { formatDate } from "@/lib/dates";
 import { average, ballsToOvers, economy, rupees, strikeRate } from "@/lib/format";
-import { cricheroesPlayerUrl } from "@/modules/cricheroes/client";
+import { cricheroesPlayerUrl } from "@/modules/cricheroes/urls";
 import { getChargeRows, getPlayerBalances } from "@/modules/finance/queries";
 import { getPlayer, playerPhoto } from "@/modules/players/queries";
-import { getSetting } from "@/modules/settings/settings";
+import { cricheroesTeam, getSettings } from "@/modules/settings/settings";
 import { mvpPoints } from "@/modules/stats/mvp";
 import { getPlayerMatchLog, getPlayerStats } from "@/modules/stats/queries";
 
@@ -31,11 +31,12 @@ export default async function PlayerProfilePage(props: PageProps<"/players/[id]"
   const player = await getPlayer(db, id);
   if (!player) notFound();
 
-  const [[stats], log, showBalances] = await Promise.all([
+  const [[stats], log, settings] = await Promise.all([
     getPlayerStats(db, {}, id),
     getPlayerMatchLog(db, id, 20),
-    getSetting("public_show_balances", db),
+    getSettings(db),
   ]);
+  const showBalances = settings.public_show_balances;
   const [balances, charges] = showBalances
     ? await Promise.all([getPlayerBalances(db), getChargeRows(db, { playerId: id })])
     : [[], []];
@@ -57,7 +58,7 @@ export default async function PlayerProfilePage(props: PageProps<"/players/[id]"
         </div>
         {player.cricheroesPlayerId && (
           <Button asChild variant="outline">
-            <a href={cricheroesPlayerUrl(player.cricheroesPlayerId)} target="_blank" rel="noreferrer">
+            <a href={cricheroesPlayerUrl(cricheroesTeam(settings).origin, player.cricheroesPlayerId)} target="_blank" rel="noreferrer">
               CricHeroes profile <ExternalLink />
             </a>
           </Button>

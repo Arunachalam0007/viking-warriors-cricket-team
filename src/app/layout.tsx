@@ -32,7 +32,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" suppressHydrationWarning className={`${sans.variable} ${display.variable} ${mono.variable} antialiased`}>
-      <body className="min-h-dvh">
+      {/* Browser extensions (e.g. ColorZilla) add attributes to <body> before hydration. */}
+      <body className="min-h-dvh" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <TooltipProvider>{children}</TooltipProvider>
           <Toaster richColors position="top-center" />

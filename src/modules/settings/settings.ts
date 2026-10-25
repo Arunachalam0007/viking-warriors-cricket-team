@@ -2,9 +2,13 @@ import "server-only";
 import { inArray, sql } from "drizzle-orm";
 import { getDb, type Executor } from "@/db";
 import { settings } from "@/db/schema";
+import { DEFAULT_CRICHEROES_TEAM_URL, parseTeamUrl, type CricheroesTeam } from "@/modules/cricheroes/urls";
 
 /** Every admin-editable setting, with its default. Stored as JSON in `settings`. */
 export const SETTING_DEFAULTS = {
+  /** CricHeroes team page link. The sync reads the site origin and team id from it. */
+  cricheroes_team_url: DEFAULT_CRICHEROES_TEAM_URL,
+  /** Kept in step with cricheroes_team_url when settings are saved */
   team_id: 2921535,
   team_name: "Viking Warriors",
   /** Default fee per player for individual / practice matches (₹) */
@@ -44,6 +48,15 @@ export async function saveSettings(values: Partial<Settings>, actor: string, db:
       .values({ key, value: value as never, updatedBy: actor })
       .onConflictDoUpdate({ target: settings.key, set: { value: value as never, updatedBy: actor, updatedAt: sql`now()` } });
   }
+}
+
+/** Where to read the team from: the saved team link, falling back to the saved team id. */
+export function cricheroesTeam(cfg: Pick<Settings, "cricheroes_team_url" | "team_id">): CricheroesTeam {
+  const fromUrl = parseTeamUrl(cfg.cricheroes_team_url);
+  if (fromUrl) return fromUrl;
+  const fallback = parseTeamUrl(DEFAULT_CRICHEROES_TEAM_URL)!;
+  const teamId = Number(cfg.team_id) || fallback.teamId;
+  return { origin: fallback.origin, teamId, url: `${fallback.origin}/team-profile/${teamId}` };
 }
 
 /** Extracts the spreadsheet id from a Google Sheets URL (or returns the id itself). */

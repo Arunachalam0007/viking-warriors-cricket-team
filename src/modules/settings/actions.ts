@@ -7,6 +7,7 @@ import { admins } from "@/db/schema";
 import { adminAction, isoDate, rupeeAmount, type ActionResult } from "@/lib/action";
 import { requireAdmin } from "@/lib/auth";
 import { audit } from "@/modules/audit/audit";
+import { resolveTeamUrl } from "@/modules/cricheroes/client";
 import { syncSheet } from "@/modules/sheets/sheets";
 import { runCricheroesSync } from "@/modules/sync/sync";
 import { getSettings, saveSettings, sheetIdFromUrl } from "./settings";
@@ -14,7 +15,7 @@ import { getSettings, saveSettings, sheetIdFromUrl } from "./settings";
 export const saveSettingsAction = adminAction(
   z.object({
     team_name: z.string().trim().min(2).max(60),
-    team_id: z.coerce.number().int().positive(),
+    cricheroes_team_url: z.string().trim().min(1, "Paste the CricHeroes team link").max(300),
     match_fee: rupeeAmount,
     finance_start_date: isoDate,
     sync_start_date: isoDate,
@@ -27,8 +28,11 @@ export const saveSettingsAction = adminAction(
   }),
   async (values, { tx, actor }) => {
     const before = await getSettings(tx);
-    await saveSettings(values, actor, tx);
-    await audit({ actor, action: "settings.update", entity: "settings", before, after: values }, tx);
+    // Share links are resolved now, so the nightly sync always has a plain team page link.
+    const team = await resolveTeamUrl(values.cricheroes_team_url);
+    const after = { ...values, cricheroes_team_url: team.url, team_id: team.teamId };
+    await saveSettings(after, actor, tx);
+    await audit({ actor, action: "settings.update", entity: "settings", before, after }, tx);
   },
 );
 

@@ -30,6 +30,87 @@ export default async function ReportsPage() {
     <div className="space-y-5">
       <PageHeader title="Reports & analytics" description={`Season trends since ${formatDate(settings.sync_start_date)}.`} />
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-heading text-xl tracking-wide">Season top performers</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {top.length === 0 ? (
+            <EmptyState title="No stats yet" />
+          ) : (
+            <>
+              {/* Phones: one tile per player. Tablet and up: the full table. */}
+              <div className="grid gap-3 sm:hidden">
+                {top.map((p, i) => (
+                  <Link key={p.playerId} href={`/players/${p.playerId}`} className="rounded-lg border p-3 transition-colors hover:bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <span className="w-5 font-heading text-lg font-bold text-primary tabular">{i + 1}</span>
+                      <PlayerAvatar name={p.name} photo={p.photo} size="sm" />
+                      <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
+                      <span className="text-right leading-none">
+                        <span className="font-heading text-xl font-bold tabular">{p.mvp}</span>
+                        <span className="block text-[10px] tracking-wide text-muted-foreground uppercase">MVP pts</span>
+                      </span>
+                    </div>
+                    <dl className="mt-3 grid grid-cols-4 gap-y-2 text-center">
+                      {[
+                        ["Mat", p.matches],
+                        ["Runs", p.runs],
+                        ["Avg", average(p.runs, p.outs)],
+                        ["SR", strikeRate(p.runs, p.balls)],
+                        ["Wkts", p.wickets],
+                        ["Econ", economy(p.runsConceded, p.ballsBowled)],
+                        ["Ct", p.catches],
+                      ].map(([label, value]) => (
+                        <div key={label}>
+                          <dt className="text-[10px] tracking-wide text-muted-foreground uppercase">{label}</dt>
+                          <dd className="font-medium tabular">{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </Link>
+                ))}
+              </div>
+              <Table className="hidden sm:table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Player</TableHead>
+                    <TableHead className="text-right">Mat</TableHead>
+                    <TableHead className="text-right">Runs</TableHead>
+                    <TableHead className="text-right">Avg</TableHead>
+                    <TableHead className="text-right">SR</TableHead>
+                    <TableHead className="text-right">Wkts</TableHead>
+                    <TableHead className="text-right">Econ</TableHead>
+                    <TableHead className="text-right">Ct</TableHead>
+                    <TableHead className="text-right">MVP</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {top.map((p) => (
+                    <TableRow key={p.playerId}>
+                      <TableCell>
+                        <Link href={`/players/${p.playerId}`} className="flex items-center gap-2 hover:underline">
+                          <PlayerAvatar name={p.name} photo={p.photo} size="sm" />
+                          <span className="font-medium whitespace-nowrap">{p.name}</span>
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-right tabular">{p.matches}</TableCell>
+                      <TableCell className="text-right tabular">{p.runs}</TableCell>
+                      <TableCell className="text-right tabular">{average(p.runs, p.outs)}</TableCell>
+                      <TableCell className="text-right tabular">{strikeRate(p.runs, p.balls)}</TableCell>
+                      <TableCell className="text-right tabular">{p.wickets}</TableCell>
+                      <TableCell className="text-right tabular">{economy(p.runsConceded, p.ballsBowled)}</TableCell>
+                      <TableCell className="text-right tabular">{p.catches}</TableCell>
+                      <TableCell className="text-right font-semibold tabular">{p.mvp}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {trends.length === 0 ? (
         <EmptyState title="No matches played yet">Charts appear after the first synced match.</EmptyState>
       ) : (
@@ -67,52 +148,6 @@ export default async function ReportsPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-heading text-xl tracking-wide">Season top performers</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {top.length === 0 ? (
-            <EmptyState title="No stats yet" />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Player</TableHead>
-                  <TableHead className="text-right">Mat</TableHead>
-                  <TableHead className="text-right">Runs</TableHead>
-                  <TableHead className="text-right">Avg</TableHead>
-                  <TableHead className="text-right">SR</TableHead>
-                  <TableHead className="text-right">Wkts</TableHead>
-                  <TableHead className="text-right">Econ</TableHead>
-                  <TableHead className="text-right">Ct</TableHead>
-                  <TableHead className="text-right">MVP</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {top.map((p) => (
-                  <TableRow key={p.playerId}>
-                    <TableCell>
-                      <Link href={`/players/${p.playerId}`} className="flex items-center gap-2 hover:underline">
-                        <PlayerAvatar name={p.name} photo={p.photo} size="sm" />
-                        <span className="font-medium whitespace-nowrap">{p.name}</span>
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right tabular">{p.matches}</TableCell>
-                    <TableCell className="text-right tabular">{p.runs}</TableCell>
-                    <TableCell className="text-right tabular">{average(p.runs, p.outs)}</TableCell>
-                    <TableCell className="text-right tabular">{strikeRate(p.runs, p.balls)}</TableCell>
-                    <TableCell className="text-right tabular">{p.wickets}</TableCell>
-                    <TableCell className="text-right tabular">{economy(p.runsConceded, p.ballsBowled)}</TableCell>
-                    <TableCell className="text-right tabular">{p.catches}</TableCell>
-                    <TableCell className="text-right font-semibold tabular">{p.mvp}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

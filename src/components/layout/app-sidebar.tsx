@@ -1,6 +1,8 @@
 "use client";
 
 import { LogIn, LogOut, ShieldCheck } from "lucide-react";
+import { motion } from "motion/react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -23,14 +25,20 @@ export function AppSidebar({ viewer, teamName }: { viewer: { email: string; isAd
   const { setOpenMobile } = useSidebar();
 
   const renderItems = (items: NavItem[]) =>
-    items.map((item) => (
+    items.map((item, i) => (
       <SidebarMenuItem key={item.href}>
-        <SidebarMenuButton asChild isActive={isActive(pathname, item.href)} tooltip={item.label}>
-          <Link href={item.href} onClick={() => setOpenMobile(false)}>
-            <item.icon />
-            <span>{item.label}</span>
-          </Link>
-        </SidebarMenuButton>
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 + i * 0.05, duration: 0.3, ease: "easeOut" }}
+        >
+          <SidebarMenuButton asChild isActive={isActive(pathname, item.href)} tooltip={item.label}>
+            <Link href={item.href} onClick={() => setOpenMobile(false)}>
+              <item.icon />
+              <span>{item.label}</span>
+            </Link>
+          </SidebarMenuButton>
+        </motion.div>
       </SidebarMenuItem>
     ));
 
@@ -38,9 +46,14 @@ export function AppSidebar({ viewer, teamName }: { viewer: { email: string; isAd
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <Link href="/" className="flex items-center gap-2 px-1 py-1.5" onClick={() => setOpenMobile(false)}>
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary font-heading text-lg font-bold text-sidebar-primary-foreground">
-            VW
-          </span>
+          <Image
+            src="/team-logo.jpeg"
+            alt={`${teamName} logo`}
+            width={64}
+            height={64}
+            priority
+            className="size-8 shrink-0 rounded-md bg-white object-contain ring-1 ring-sidebar-border"
+          />
           <span className="truncate font-heading text-xl font-bold tracking-wide group-data-[collapsible=icon]:hidden">
             {teamName}
           </span>

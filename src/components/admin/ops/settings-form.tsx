@@ -8,11 +8,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { parseTeamUrl } from "@/modules/cricheroes/urls";
 import { saveSettingsAction } from "@/modules/settings/actions";
 
 export type SettingsValues = {
   team_name: string;
-  team_id: number;
+  cricheroes_team_url: string;
   match_fee: number;
   finance_start_date: string;
   sync_start_date: string;
@@ -35,6 +36,7 @@ export function SettingsForm({ initial, serviceAccountEmail }: { initial: Settin
   const [v, setV] = useState(initial);
   const { run, pending } = useAction();
   const sheetValid = /\/spreadsheets\/d\/[a-zA-Z0-9-_]+/.test(v.google_sheet_url);
+  const team = parseTeamUrl(v.cricheroes_team_url);
 
   return (
     <form
@@ -49,14 +51,37 @@ export function SettingsForm({ initial, serviceAccountEmail }: { initial: Settin
           <CardDescription>These apply across the whole site and to the nightly sync.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="set-team-name" label="Team name">
-              <Input id="set-team-name" required minLength={2} maxLength={60} value={v.team_name} onChange={(e) => setV({ ...v, team_name: e.target.value })} />
-            </Field>
-            <Field id="set-team-id" label="CricHeroes team ID" hint="The number in the CricHeroes team link, e.g. team-profile/2921535/…">
-              <Input id="set-team-id" type="number" inputMode="numeric" min={1} required value={v.team_id} onChange={(e) => setV({ ...v, team_id: Number(e.target.value) })} />
-            </Field>
-          </div>
+          <Field id="set-team-name" label="Team name">
+            <Input id="set-team-name" required minLength={2} maxLength={60} value={v.team_name} onChange={(e) => setV({ ...v, team_name: e.target.value })} />
+          </Field>
+
+          <Field
+            id="set-team-url"
+            label="CricHeroes team link"
+            hint={
+              team ? (
+                <>
+                  Team ID <span className="font-medium text-foreground tabular">{team.teamId}</span> on{" "}
+                  <span className="font-medium text-foreground">{new URL(team.origin).host}</span>.{" "}
+                  <a href={team.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2">
+                    Open <ExternalLink className="size-3" />
+                  </a>
+                </>
+              ) : (
+                "Paste the team page link (cricheroes.com/team-profile/…) or the share link from the app (chshare.link/team/…). Share links are checked when you save."
+              )
+            }
+          >
+            <Input
+              id="set-team-url"
+              type="url"
+              inputMode="url"
+              required
+              placeholder="https://cricheroes.com/team-profile/2921535/Viking-Warriors"
+              value={v.cricheroes_team_url}
+              onChange={(e) => setV({ ...v, cricheroes_team_url: e.target.value })}
+            />
+          </Field>
 
           <div className="grid gap-4 sm:grid-cols-3">
             <Field id="set-fee" label="Match fee per player (₹)" hint="Only affects matches that finish after you change it. Existing matches keep their fee.">

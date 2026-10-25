@@ -12,7 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDb } from "@/db";
 import { formatDateTime, todayIst } from "@/lib/dates";
 import { listCashHolders } from "@/modules/admin/queries";
-import { cricheroesMatchUrl } from "@/modules/cricheroes/client";
+import { cricheroesMatchUrl } from "@/modules/cricheroes/urls";
+import { cricheroesTeam, getSettings } from "@/modules/settings/settings";
 import { getChargeRows } from "@/modules/finance/queries";
 import { listPlayers } from "@/modules/players/queries";
 import { getMatchDetail } from "@/modules/stats/queries";
@@ -31,11 +32,13 @@ export default async function MatchFeesPage({ params }: PageProps<"/admin/fees/[
   if (!detail) notFound();
   const { match, roster } = detail;
 
-  const [charges, holders, allPlayers] = await Promise.all([
+  const [charges, holders, allPlayers, settings] = await Promise.all([
     getChargeRows(db, { matchId, kind: "match_fee" }),
     listCashHolders(db),
     listPlayers(db),
+    getSettings(db),
   ]);
+  const cricheroesOrigin = cricheroesTeam(settings).origin;
   const chargeByPlayer = new Map(charges.map((c) => [c.playerId, c]));
 
   const rows: RosterRow[] = roster
@@ -100,7 +103,7 @@ export default async function MatchFeesPage({ params }: PageProps<"/admin/fees/[
         actions={
           match.cricheroesMatchId ? (
             <Button asChild variant="outline" size="sm">
-              <a href={cricheroesMatchUrl(match.cricheroesMatchId)} target="_blank" rel="noreferrer">
+              <a href={cricheroesMatchUrl(cricheroesOrigin, match.cricheroesMatchId)} target="_blank" rel="noreferrer">
                 CricHeroes <ExternalLink />
               </a>
             </Button>

@@ -1,5 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
+import { RevealDiv } from "@/components/motion/reveal"
 
 function Card({
   className,
@@ -7,7 +8,7 @@ function Card({
   ...props
 }: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
   return (
-    <div
+    <RevealDiv
       data-slot="card"
       data-size={size}
       className={cn(

@@ -111,8 +111,8 @@ export default async function LeaderboardPage(props: PageProps<"/leaderboard">) 
                     <TableHead className="text-right">Mat</TableHead>
                     <TableHead className="text-right">Runs</TableHead>
                     <TableHead className="text-right">Wkts</TableHead>
-                    <TableHead className="text-right">Ct/St/RO</TableHead>
                     <TableHead className="text-right">Points</TableHead>
+                    <TableHead className="text-right">Ct/St/RO</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -125,10 +125,10 @@ export default async function LeaderboardPage(props: PageProps<"/leaderboard">) 
                       <TableCell className="text-right tabular">{p.matches}</TableCell>
                       <TableCell className="text-right tabular">{p.runs}</TableCell>
                       <TableCell className="text-right tabular">{p.wickets}</TableCell>
+                      <TableCell className="text-right font-heading text-lg font-bold tabular">{p.mvp}</TableCell>
                       <TableCell className="text-right tabular">
                         {p.catches}/{p.stumpings}/{p.runOuts}
                       </TableCell>
-                      <TableCell className="text-right font-heading text-lg font-bold tabular">{p.mvp}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

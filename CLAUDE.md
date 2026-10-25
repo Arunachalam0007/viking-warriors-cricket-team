@@ -30,6 +30,7 @@ Full docs: `docs/index.html` (architecture) and `docs/pages/*.html` (one per pag
 - `src/app/(app)/` — public pages; `src/app/(app)/admin/` — admin pages (layout calls `requireAdmin()`)
 - `src/app/api/cron/nightly` — Vercel Cron 18:00 UTC (23:30 IST); `src/app/api/export/finance` — Excel
 - `src/modules/cricheroes/parser.ts` — the only place that knows CricHeroes page structure
+- CricHeroes team link is the admin setting `cricheroes_team_url` (Admin → Settings); the sync takes the site origin and team id from it via `cricheroesTeam()`. Never hard-code the domain or team id — link helpers live in `src/modules/cricheroes/urls.ts`
 
 ## Phase 2 (not built yet — wait for the owner)
 AI features and chatbot, WhatsApp reminders (rows go to `notification_outbox`).

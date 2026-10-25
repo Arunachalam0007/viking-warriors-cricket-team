@@ -10,9 +10,9 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { getDb } from "@/db";
 import { formatDateTime } from "@/lib/dates";
 import { ballsToOvers, economy, rupees, strikeRate } from "@/lib/format";
-import { cricheroesMatchUrl } from "@/modules/cricheroes/client";
+import { cricheroesMatchUrl } from "@/modules/cricheroes/urls";
 import { getChargeRows } from "@/modules/finance/queries";
-import { getSetting } from "@/modules/settings/settings";
+import { cricheroesTeam, getSettings } from "@/modules/settings/settings";
 import { getMatchDetail } from "@/modules/stats/queries";
 
 export async function generateMetadata(props: PageProps<"/matches/[id]">) {
@@ -30,11 +30,9 @@ export default async function MatchDetailPage(props: PageProps<"/matches/[id]">)
   if (!detail) notFound();
   const { match, roster } = detail;
 
-  const [teamName, showBalances, charges] = await Promise.all([
-    getSetting("team_name", db),
-    getSetting("public_show_balances", db),
-    getChargeRows(db, { matchId: id }),
-  ]);
+  const [settings, charges] = await Promise.all([getSettings(db), getChargeRows(db, { matchId: id })]);
+  const { team_name: teamName, public_show_balances: showBalances } = settings;
+  const cricheroesOrigin = cricheroesTeam(settings).origin;
 
   const xi = roster.filter((r) => r.played);
   const pom = match.pomCricheroesPlayerId ? roster.find((r) => r.cricheroesPlayerId === match.pomCricheroesPlayerId) : undefined;
@@ -92,7 +90,7 @@ export default async function MatchDetailPage(props: PageProps<"/matches/[id]">)
           )}
           {match.cricheroesMatchId && (
             <Button asChild variant="outline" size="sm">
-              <a href={cricheroesMatchUrl(match.cricheroesMatchId)} target="_blank" rel="noreferrer">
+              <a href={cricheroesMatchUrl(cricheroesOrigin, match.cricheroesMatchId)} target="_blank" rel="noreferrer">
                 Full scorecard on CricHeroes <ExternalLink />
               </a>
             </Button>

@@ -42,7 +42,7 @@ export default async function SettingsPage() {
         serviceAccountEmail={serviceAccountEmail}
         initial={{
           team_name: settings.team_name,
-          team_id: Number(settings.team_id),
+          cricheroes_team_url: settings.cricheroes_team_url,
           match_fee: Number(settings.match_fee),
           finance_start_date: settings.finance_start_date,
           sync_start_date: settings.sync_start_date,
