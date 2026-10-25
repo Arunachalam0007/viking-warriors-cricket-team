@@ -26,7 +26,7 @@ Full docs: `docs/index.html` (architecture) and `docs/pages/*.html` (one per pag
 10. Phone numbers, payments screenshots, audit log, expenses/income and cash holders are admin-only.
 
 ## Database connection
-`DATABASE_URL` must be the Supabase **Session pooler** (port 5432). The Transaction pooler (6543) stalls the app's parallel page queries (pages hang forever). Vercel region `sin1` sits next to the Supabase project (ap-southeast-1); move both together.
+`DATABASE_URL` is the Supabase **Transaction pooler** (port 6543) with the `pg` (node-postgres) driver. Don't switch the driver back to `postgres` (postgres-js): on this pooler its queries stall and pages hang forever. Don't use the Session pooler (5432) at runtime either: it caps clients at 15 and Vercel instances exhaust it. `DIRECT_DATABASE_URL` (5432) is only for migrations. Vercel region `sin1` sits next to the Supabase project (ap-southeast-1); move both together.
 
 ## Layout
 - `src/modules/<feature>/` — `queries.ts` (reads), `actions.ts` ("use server" mutations), domain logic

@@ -12,8 +12,15 @@ async function fetchPage(origin: string, path: string): Promise<string> {
     signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) {
-    const hint = res.status === 404 ? " — check the CricHeroes team link in Admin → Settings" : "";
-    throw new Error(`CricHeroes ${origin}${path} returned HTTP ${res.status}${hint}`);
+    const hint =
+      res.status === 404
+        ? " — check the CricHeroes team link in Admin → Settings"
+        : res.status === 403
+          ? " — CricHeroes refused this server"
+          : "";
+    // Which layer answered (CDN / firewall) helps tell a blocked server from a missing page
+    const via = ["server", "cf-ray", "x-amz-cf-id", "x-cache"].map((h) => res.headers.get(h) && `${h}=${res.headers.get(h)}`).filter(Boolean).join(", ");
+    throw new Error(`CricHeroes ${origin}${path} returned HTTP ${res.status}${hint}${via ? ` (${via})` : ""}`);
   }
   return res.text();
 }

@@ -1,9 +1,9 @@
 import "server-only";
-import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import * as schema from "./schema";
 
-export type DB = PostgresJsDatabase<typeof schema>;
+export type DB = NodePgDatabase<typeof schema>;
 export type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];
 export type Executor = DB | Tx;
 
@@ -11,8 +11,9 @@ const globalForDb = globalThis as unknown as { __vwDb?: DB };
 
 /**
  * DATABASE_URL:
- *  - Supabase Session pooler (port 5432). The Transaction pooler (6543) stalls this app's
- *    parallel page queries, so it is not used.
+ *  - Supabase Transaction pooler (port 6543), driven by node-postgres. Serverless-friendly: many
+ *    Vercel instances share Supabase's pool. (The `postgres` driver stalled on this pooler, and the
+ *    Session pooler caps clients at 15, which Vercel instances exhaust.)
  *  - `pglite:./.pglite` for an embedded local Postgres with no setup
  */
 function connect(): DB {
@@ -29,9 +30,17 @@ function connect(): DB {
     return drizzlePglite(client, { schema }) as unknown as DB;
   }
 
-  // Small pool, idle connections released quickly: each Vercel instance holds a session-pooler connection.
-  const client = postgres(url, { prepare: false, max: 3, idle_timeout: 20, connect_timeout: 10 });
-  return drizzle(client, { schema });
+  // Small pool per instance, idle connections released quickly. Encrypted to Supabase; its pooler
+  // certificate is not in Node's default CA list, hence rejectUnauthorized: false.
+  const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
+  const pool = new Pool({
+    connectionString: url,
+    max: 3,
+    idleTimeoutMillis: 20_000,
+    connectionTimeoutMillis: 10_000,
+    ssl: local ? undefined : { rejectUnauthorized: false },
+  });
+  return drizzle(pool, { schema });
 }
 
 export function getDb(): DB {

@@ -24,7 +24,7 @@ npm run dev         # http://localhost:3000
 ```
 
 ## Production setup
-1. **Supabase**: create a project. Copy the **Session pooler** connection string (port 5432) into both `DATABASE_URL` and `DIRECT_DATABASE_URL` (not the Transaction pooler on 6543, which stalls page loads), the project URL, publishable key and secret key into `.env.local`.
+1. **Supabase**: create a project. Copy the **Transaction pooler** connection string (port 6543) into `DATABASE_URL` and the **Session pooler** one (port 5432) into `DIRECT_DATABASE_URL`, the project URL, publishable key and secret key into `.env.local`.
    - Auth → URL configuration: Site URL = your Vercel URL; add `https://<your-domain>/auth/callback` to redirect URLs.
 2. `npm run db:migrate` — creates tables, enables RLS, seeds admin `arunsha0007@gmail.com` and cash holder `Rahul`.
 3. **Google Sheets**: Google Cloud → enable *Google Sheets API* → create a service account → JSON key. Put `client_email` / `private_key` in env. **Share the sheet with the service account email as Editor.**
