@@ -43,3 +43,7 @@ next-env.d.ts
 # local embedded database
 /.pglite
 !.env.example
+
+# stray screenshots from local testing (real images live in public/)
+/*.png
+/*.jpg
