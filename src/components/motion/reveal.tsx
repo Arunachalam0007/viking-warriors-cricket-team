@@ -4,6 +4,9 @@ import { animate, useReducedMotion } from "motion/react";
 import { useLayoutEffect, useRef, type ComponentProps } from "react";
 
 const OFFSET = 64;
+/** Visitors whose device asks for reduced motion still see the direction, with a shorter, softer slide. */
+const GENTLE = { offset: 24, duration: 0.5 };
+const FULL = { offset: OFFSET, duration: 0.65 };
 /** Gap between one card starting and the next */
 const STAGGER = 0.09;
 /** Cards past this many wait no longer, so long lists don't crawl */
@@ -23,17 +26,17 @@ const inViewport = (r: DOMRect) => r.bottom > 0 && r.top < window.innerHeight;
  * Left half of its row → from the left, right half → from the right. Full-width cards (most cards
  * on a phone) alternate: from the left, then the right, and so on down the page.
  */
-function direction(el: HTMLElement) {
+function direction(el: HTMLElement, offset = OFFSET) {
   const item = gridItem(el);
   const box = item.getBoundingClientRect();
   const row = item.parentElement;
   const rowBox = row?.getBoundingClientRect();
   if (!rowBox || box.width > rowBox.width * 0.75) {
     const index = [...document.querySelectorAll("[data-slot=card]")].indexOf(el);
-    return { x: index % 2 === 0 ? -OFFSET : OFFSET, box };
+    return { x: index % 2 === 0 ? -offset : offset, box };
   }
   const leftHalf = box.left + box.width / 2 < rowBox.left + rowBox.width / 2;
-  return { x: leftHalf ? -OFFSET : OFFSET, box };
+  return { x: leftHalf ? -offset : offset, box };
 }
 
 /** Position in reading order among `others`: how many are above, or to the left in the same row. */
@@ -60,6 +63,7 @@ function queueReveal(el: HTMLElement, play: (delay: number) => void) {
 /**
  * A div that slides in at every screen size. Cards on screen when the page opens animate at
  * once, one by one in reading order; cards further down wait until they are scrolled into view.
+ * With the device's Reduce Motion setting on, the slide is shorter and softer (owner's choice).
  * Used by <Card> so every screen's cards animate.
  */
 export function RevealDiv({ style, ...props }: ComponentProps<"div">) {
@@ -69,14 +73,11 @@ export function RevealDiv({ style, ...props }: ComponentProps<"div">) {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (reduceMotion) {
-      el.style.opacity = "1";
-      return;
-    }
+    const { offset, duration } = reduceMotion ? GENTLE : FULL;
     let stop: (() => void) | undefined;
     const play = (delay: number) => {
-      const { x } = direction(el);
-      const controls = animate(el, { opacity: [0, 1], x: [x, 0] }, { duration: 0.65, delay, ease: EASE });
+      const { x } = direction(el, offset);
+      const controls = animate(el, { opacity: [0, 1], x: [x, 0] }, { duration, delay, ease: EASE });
       stop = () => controls.stop();
     };
 
