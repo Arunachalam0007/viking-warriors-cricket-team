@@ -3,11 +3,10 @@ import { auth, sheets as sheetsApi, type sheets_v4 } from "@googleapis/sheets";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { getDb, type DB } from "@/db";
 import { cashHolders, collections, expenses, income, matches, payments, players, syncRuns } from "@/db/schema";
-import { formatMonth, istDate, monthsBetween, todayIst } from "@/lib/dates";
+import { formatDate, formatMonth, istDate, monthsBetween, todayIst } from "@/lib/dates";
 import { getChargeRows, getPlayerBalances, getRevenueSummary, type ChargeRow } from "@/modules/finance/queries";
 import { getSettings, sheetIdFromUrl } from "@/modules/settings/settings";
-
-type Grid = (string | number)[][];
+import { formatRequests, layoutTab, PALETTE, resetRequests, titleCase, type Cell, type Column, type TabSpec } from "./layout";
 
 export function sheetsConfigured() {
   return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY);
@@ -22,79 +21,124 @@ function client(): sheets_v4.Sheets {
   return sheetsApi({ version: "v4", auth: jwt });
 }
 
-/* ---------- Tab builders (pure data → grid) ---------- */
+/* ---------- Tab builders (data → tables; layout.ts turns them into cells and formatting) ---------- */
 
-const cellFor = (c: ChargeRow) => {
+const feeCell = (c: ChargeRow) => {
   if (c.waived) return "Waived";
   if (c.status === "paid") return `Paid ${c.amount}`;
   if (c.status === "partial") return `Part ${c.paid}/${c.amount}`;
   return `Due ${c.amount}`;
 };
 
+const balanceStatus = (balance: number) => (balance > 0 ? "Unpaid" : balance < 0 ? "Credit" : "Clear");
+const sumOf = <T>(rows: T[], pick: (r: T) => number) => rows.reduce((s, r) => s + pick(r), 0);
+
 /** Players down, matches across — same shape as the team's old "Normal match amount split" sheet. */
-function monthGrid(month: string, monthMatches: { id: string; date: string; opponent: string; ground: string | null }[], rows: ChargeRow[]): Grid {
+function monthTab(month: string, monthMatches: { id: string; date: string; opponent: string; ground: string | null }[], rows: ChargeRow[]): TabSpec {
   const fees = rows.filter((r) => r.kind === "match_fee");
   const others = rows.filter((r) => r.kind !== "match_fee");
+  const charged = (r: ChargeRow) => (r.waived ? 0 : r.amount);
   const playerNames = [...new Map(rows.map((r) => [r.playerId, r.playerName])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
 
-  const header1: (string | number)[] = ["S.No", "Player", ...monthMatches.map((m) => m.date), "Other charges", "Charged", "Paid", "Due"];
-  const header2: (string | number)[] = ["", "", ...monthMatches.map((m) => `vs ${m.opponent}`), "", "", "", ""];
-  const header3: (string | number)[] = ["", "", ...monthMatches.map((m) => (m.ground ? `Venue: ${m.ground}` : "")), "", "", "", ""];
-  const grid: Grid = [[`${formatMonth(month)} — match fees`], header1, header2, header3];
+  const columns: Column[] = [
+    { header: "S.No", width: 5, kind: "number" },
+    { header: "Player", width: 22 },
+    ...monthMatches.map((m): Column => ({
+      header: `${formatDate(m.date, { day: "2-digit", month: "short" })}\nvs ${m.opponent}`,
+      width: 16,
+      kind: "fee",
+      note: m.ground ? `Venue: ${m.ground}` : undefined,
+    })),
+    { header: "Other charges", width: 11, kind: "money" },
+    { header: "Charged", width: 11, kind: "money" },
+    { header: "Paid", width: 11, kind: "in" },
+    { header: "Due", width: 11, kind: "due" },
+    { header: "Status", width: 9, kind: "status" },
+  ];
 
-  let i = 0;
-  for (const [playerId, name] of playerNames) {
+  const body: Cell[][] = playerNames.map(([playerId, name], i) => {
     const mine = rows.filter((r) => r.playerId === playerId);
-    const cells = monthMatches.map((m) => {
-      const c = fees.find((f) => f.playerId === playerId && f.matchId === m.id);
-      return c ? cellFor(c) : "";
-    });
-    const other = others.filter((r) => r.playerId === playerId).reduce((s, r) => s + (r.waived ? 0 : r.amount), 0);
-    grid.push([
-      ++i,
+    const due = sumOf(mine, (r) => r.due);
+    return [
+      i + 1,
       name,
-      ...cells,
-      other,
-      mine.reduce((s, r) => s + (r.waived ? 0 : r.amount), 0),
-      mine.reduce((s, r) => s + r.paid, 0),
-      mine.reduce((s, r) => s + r.due, 0),
-    ]);
-  }
-  const total = (k: "amount" | "paid" | "due") => rows.reduce((s, r) => s + (k === "amount" && r.waived ? 0 : r[k]), 0);
-  grid.push([]);
-  grid.push(["", "Total", ...monthMatches.map(() => ""), "", total("amount"), total("paid"), total("due")]);
-  return grid;
+      ...monthMatches.map((m) => {
+        const c = fees.find((f) => f.playerId === playerId && f.matchId === m.id);
+        return c ? feeCell(c) : "";
+      }),
+      sumOf(others.filter((r) => r.playerId === playerId), charged),
+      sumOf(mine, charged),
+      sumOf(mine, (r) => r.paid),
+      due,
+      due > 0 ? "Unpaid" : "Clear",
+    ];
+  });
+
+  // Per match: "paid of charged" so the admin sees which matches still have money out
+  const perMatch = monthMatches.map((m) => {
+    const mine = fees.filter((f) => f.matchId === m.id);
+    return `${sumOf(mine, (r) => r.paid)} of ${sumOf(mine, charged)}`;
+  });
+  const totals: Cell[] = ["", "Total", ...perMatch, sumOf(others, charged), sumOf(rows, charged), sumOf(rows, (r) => r.paid), sumOf(rows, (r) => r.due), ""];
+
+  return { name: formatMonth(month, true), heading: `${formatMonth(month)} — match fees`, color: "#2E7D4F", freezeColumns: 2, tables: [{ columns, rows: body, totals }] };
 }
 
-export async function buildTabs(db: DB): Promise<Map<string, Grid>> {
+export async function buildTabs(db: DB): Promise<TabSpec[]> {
   const cfg = await getSettings(db);
-  const tabs = new Map<string, Grid>();
-  const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+  const tabs: TabSpec[] = [];
 
   // Summary
-  const balances = await getPlayerBalances(db);
+  const balances = (await getPlayerBalances(db)).filter((b) => b.charged || b.paid);
   const revenue = await getRevenueSummary(db);
-  const summary: Grid = [
-    [`${cfg.team_name} — finance summary`, "", "", "", `Updated ${now} IST by the team portal. Do not edit: changes are overwritten.`],
-    [],
-    ["Player", "Matches charged", "Charged", "Paid", "Balance (+ owes / − credit)"],
-    ...balances.filter((b) => b.charged || b.paid).map((b) => [b.name, b.matchFees, b.charged, b.paid, b.balance]),
-    [],
-    ["Team totals"],
-    ["Total charged", revenue.charged],
-    ["Collected from players", revenue.collected],
-    ["Outstanding dues", revenue.outstanding],
-    ["Other income", revenue.income],
-    ["Expenses", revenue.expenses],
-    ["Fund balance", revenue.fundBalance],
-    [],
-    ["Cash holder", "Received", "Income", "Spent", "In hand"],
-    ...revenue.holders.map((h) => [h.name, h.received, h.income, h.spent, h.balance]),
-  ];
-  tabs.set("Summary", summary);
+  tabs.push({
+    name: "Summary",
+    heading: `${cfg.team_name} — finance summary`,
+    color: PALETTE.brand,
+    tables: [
+      {
+        columns: [
+          { header: "Player", width: 24 },
+          { header: "Matches charged", width: 10, kind: "number" },
+          { header: "Charged", width: 11, kind: "money" },
+          { header: "Paid", width: 11, kind: "in" },
+          { header: "Balance\n(+ unpaid / − credit)", width: 14, kind: "balance" },
+          { header: "Status", width: 9, kind: "status" },
+        ],
+        rows: balances.map((b) => [b.name, b.matchFees, b.charged, b.paid, b.balance, balanceStatus(b.balance)]),
+        totals: ["Total", sumOf(balances, (b) => b.matchFees), sumOf(balances, (b) => b.charged), sumOf(balances, (b) => b.paid), sumOf(balances, (b) => b.balance), ""],
+      },
+      {
+        title: "Team totals",
+        columns: [
+          { header: "Item", width: 24 },
+          { header: "Amount", width: 12, kind: "money" },
+        ],
+        rows: [
+          ["Total charged", revenue.charged],
+          ["Collected from players", revenue.collected],
+          ["Outstanding dues", revenue.outstanding],
+          ["Other income", revenue.income],
+          ["Expenses", revenue.expenses],
+        ],
+        totals: ["Fund balance", revenue.fundBalance],
+      },
+      {
+        title: "Cash holders",
+        columns: [
+          { header: "Holder", width: 24 },
+          { header: "Received", width: 12, kind: "in" },
+          { header: "Income", width: 11, kind: "in" },
+          { header: "Spent", width: 11, kind: "out" },
+          { header: "In hand", width: 14, kind: "money" },
+        ],
+        rows: revenue.holders.map((h) => [h.name, h.received, h.income, h.spent, h.balance]),
+      },
+    ],
+  });
 
-  // One tab per month since finance start
-  const months = monthsBetween(cfg.finance_start_date.slice(0, 7), todayIst().slice(0, 7));
+  // One tab per month since finance start, newest first
+  const months = monthsBetween(cfg.finance_start_date.slice(0, 7), todayIst().slice(0, 7)).reverse();
   for (const month of months) {
     const rows = await getChargeRows(db, { month });
     const allMatches = await db
@@ -103,49 +147,115 @@ export async function buildTabs(db: DB): Promise<Map<string, Grid>> {
       .where(and(eq(matches.chargeable, true), sql`to_char(${matches.startTime} at time zone 'Asia/Kolkata', 'YYYY-MM') = ${month}`))
       .orderBy(asc(matches.startTime));
     const monthMatches = allMatches.map((m) => ({ id: m.id, date: istDate(m.startTime), opponent: m.opponent, ground: m.ground }));
-    tabs.set(formatMonth(month, true), monthGrid(month, monthMatches, rows));
+    tabs.push(monthTab(month, monthMatches, rows));
   }
 
   // Collections (tournament shares, monthly fees…)
   const colls = await db.select().from(collections).orderBy(desc(collections.dueOn));
   const collRows = await getChargeRows(db, { kind: "collection" });
-  const collGrid: Grid = [["Collection", "Type", "Due on", "Player", "Amount", "Paid", "Due", "Status"]];
-  for (const c of colls) {
-    for (const r of collRows.filter((x) => x.collectionId === c.id)) {
-      collGrid.push([c.title, c.kind, c.dueOn, r.playerName, r.amount, r.paid, r.due, r.status]);
-    }
-  }
-  tabs.set("Collections", collGrid);
+  const collBody = colls.flatMap((c) =>
+    collRows.filter((x) => x.collectionId === c.id).map((r): Cell[] => [c.title, titleCase(c.kind), c.dueOn, r.playerName, r.waived ? 0 : r.amount, r.paid, r.due, titleCase(r.status)]),
+  );
+  tabs.push({
+    name: "Collections",
+    heading: "Collections — tournament shares and other team collections",
+    color: "#5F6368",
+    tables: [
+      {
+        columns: [
+          { header: "Collection", width: 26 },
+          { header: "Type", width: 14 },
+          { header: "Due on", width: 12, kind: "date" },
+          { header: "Player", width: 22 },
+          { header: "Amount", width: 11, kind: "money" },
+          { header: "Paid", width: 11, kind: "in" },
+          { header: "Due", width: 11, kind: "due" },
+          { header: "Status", width: 9, kind: "status" },
+        ],
+        rows: collBody,
+        totals: collBody.length ? ["Total", "", "", "", sumOf(collBody, (r) => Number(r[4])), sumOf(collBody, (r) => Number(r[5])), sumOf(collBody, (r) => Number(r[6])), ""] : undefined,
+      },
+    ],
+  });
 
   const holderName = new Map((await db.select().from(cashHolders)).map((h) => [h.id, h.name]));
+  const holder = (id: string | null) => (id ? (holderName.get(id) ?? "") : "");
+
   const pays = await db
     .select({ p: payments, name: players.name })
     .from(payments)
     .innerJoin(players, eq(players.id, payments.playerId))
     .orderBy(desc(payments.paidOn));
-  tabs.set("Payments", [
-    ["Date", "Player", "Amount", "Mode", "Received by", "Reference", "Note"],
-    ...pays.map(({ p, name }) => [p.paidOn, name, p.amount, p.mode, p.holderId ? holderName.get(p.holderId) ?? "" : "", p.reference ?? "", p.note ?? ""]),
-  ]);
+  tabs.push({
+    name: "Payments",
+    heading: "Payments received from players",
+    color: "#5F6368",
+    tables: [
+      {
+        columns: [
+          { header: "Date", width: 12, kind: "date" },
+          { header: "Player", width: 22 },
+          { header: "Amount", width: 11, kind: "in" },
+          { header: "Mode", width: 10 },
+          { header: "Received by", width: 14 },
+          { header: "Reference", width: 18 },
+          { header: "Note", width: 30 },
+        ],
+        rows: pays.map(({ p, name }) => [p.paidOn, name, p.amount, titleCase(p.mode), holder(p.holderId), p.reference ?? "", p.note ?? ""]),
+        totals: pays.length ? ["Total", "", sumOf(pays, ({ p }) => p.amount), "", "", "", ""] : undefined,
+      },
+    ],
+  });
 
   const exp = await db.select().from(expenses).orderBy(desc(expenses.spentOn));
-  tabs.set("Expenses", [
-    ["Date", "Category", "Description", "Amount", "Paid from", "Paid by", "Mode"],
-    ...exp.map((e) => [e.spentOn, e.category, e.description, e.amount, e.holderId ? holderName.get(e.holderId) ?? "" : "", e.paidBy ?? "", e.mode]),
-  ]);
+  tabs.push({
+    name: "Expenses",
+    heading: "Team expenses",
+    color: "#5F6368",
+    tables: [
+      {
+        columns: [
+          { header: "Date", width: 12, kind: "date" },
+          { header: "Category", width: 14 },
+          { header: "Description", width: 32 },
+          { header: "Amount", width: 11, kind: "out" },
+          { header: "Paid from", width: 14 },
+          { header: "Paid by", width: 14 },
+          { header: "Mode", width: 10 },
+        ],
+        rows: exp.map((e) => [e.spentOn, titleCase(e.category), e.description, e.amount, holder(e.holderId), e.paidBy ?? "", titleCase(e.mode)]),
+        totals: exp.length ? ["Total", "", "", sumOf(exp, (e) => e.amount), "", "", ""] : undefined,
+      },
+    ],
+  });
 
   const inc = await db.select().from(income).orderBy(desc(income.receivedOn));
-  tabs.set("Income", [
-    ["Date", "Category", "Description", "Amount", "Received by", "Mode"],
-    ...inc.map((i) => [i.receivedOn, i.category, i.description, i.amount, i.holderId ? holderName.get(i.holderId) ?? "" : "", i.mode]),
-  ]);
+  tabs.push({
+    name: "Income",
+    heading: "Other income",
+    color: "#5F6368",
+    tables: [
+      {
+        columns: [
+          { header: "Date", width: 12, kind: "date" },
+          { header: "Category", width: 14 },
+          { header: "Description", width: 32 },
+          { header: "Amount", width: 11, kind: "in" },
+          { header: "Received by", width: 14 },
+          { header: "Mode", width: 10 },
+        ],
+        rows: inc.map((i) => [i.receivedOn, titleCase(i.category), i.description, i.amount, holder(i.holderId), titleCase(i.mode)]),
+        totals: inc.length ? ["Total", "", "", sumOf(inc, (i) => i.amount), "", ""] : undefined,
+      },
+    ],
+  });
 
   return tabs;
 }
 
 /* ---------- Writer ---------- */
 
-/** Rewrites every managed tab. Tabs the app does not manage are left alone. */
+/** Rewrites every managed tab: clear, write values, then format. Tabs the app does not manage are left alone. */
 export async function writeSheet(db: DB = getDb()) {
   const cfg = await getSettings(db);
   const spreadsheetId = sheetIdFromUrl(cfg.google_sheet_url);
@@ -154,48 +264,55 @@ export async function writeSheet(db: DB = getDb()) {
 
   const api = client();
   const tabs = await buildTabs(db);
+  const updated = `Updated ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })} IST by the team portal · Use the filter buttons in the red header row · Do not edit: changes are overwritten on the next sync`;
+  const laid = tabs.map((tab) => ({ tab, ...layoutTab(tab, updated) }));
 
-  const meta = await api.spreadsheets.get({ spreadsheetId, fields: "sheets.properties" });
-  const existing = new Map((meta.data.sheets ?? []).map((s) => [s.properties!.title!, s.properties!.sheetId!]));
+  const fields = "sheets(properties(sheetId,title,gridProperties),basicFilter,bandedRanges(bandedRangeId),conditionalFormats)";
+  const meta = await api.spreadsheets.get({ spreadsheetId, fields });
+  const existing = new Map((meta.data.sheets ?? []).map((s) => [s.properties!.title!, s]));
 
-  const missing = [...tabs.keys()].filter((t) => !existing.has(t));
+  // Create missing tabs, big enough for their content
+  const missing = laid.filter(({ tab }) => !existing.has(tab.name));
   if (missing.length) {
-    const res = await api.spreadsheets.batchUpdate({
+    await api.spreadsheets.batchUpdate({
       spreadsheetId,
-      requestBody: { requests: missing.map((title) => ({ addSheet: { properties: { title } } })) },
+      requestBody: { requests: missing.map(({ tab }) => ({ addSheet: { properties: { title: tab.name } } })) },
     });
-    for (const reply of res.data.replies ?? []) {
-      const p = reply.addSheet?.properties;
-      if (p?.title) existing.set(p.title, p.sheetId!);
-    }
+    const again = await api.spreadsheets.get({ spreadsheetId, fields });
+    for (const s of again.data.sheets ?? []) existing.set(s.properties!.title!, s);
   }
 
+  // Clear old content/formatting and make sure every grid is large enough
+  const resets = laid.flatMap(({ tab, grid }) => {
+    const sheet = existing.get(tab.name)!;
+    const g = sheet.properties!.gridProperties ?? {};
+    const rows = Math.max(g.rowCount ?? 0, grid.length + 20);
+    const cols = Math.max(g.columnCount ?? 0, Math.max(...grid.map((r) => r.length)) + 2);
+    return [
+      ...resetRequests(sheet),
+      { updateSheetProperties: { properties: { sheetId: sheet.properties!.sheetId!, gridProperties: { rowCount: rows, columnCount: cols, frozenRowCount: 0, frozenColumnCount: 0 } }, fields: "gridProperties(rowCount,columnCount,frozenRowCount,frozenColumnCount)" } },
+    ];
+  });
+  await api.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: resets } });
+
   const q = (t: string) => `'${t.replace(/'/g, "''")}'`;
-  await api.spreadsheets.values.batchClear({ spreadsheetId, requestBody: { ranges: [...tabs.keys()].map((t) => `${q(t)}!A:ZZ`) } });
   await api.spreadsheets.values.batchUpdate({
     spreadsheetId,
     requestBody: {
+      // RAW: player-entered text is never interpreted as a formula
       valueInputOption: "RAW",
-      data: [...tabs.entries()].map(([t, grid]) => ({ range: `${q(t)}!A1`, values: grid })),
+      data: laid.map(({ tab, grid }) => ({ range: `${q(tab.name)}!A1`, values: grid })),
     },
   });
 
-  // Bold, frozen header rows
   await api.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: {
-      requests: [...tabs.keys()].flatMap((t) => {
-        const sheetId = existing.get(t)!;
-        const headerRows = t === "Summary" ? 1 : /^\w{3,4} \d{4}$/.test(t) ? 4 : 1;
-        return [
-          { updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: headerRows } }, fields: "gridProperties.frozenRowCount" } },
-          { repeatCell: { range: { sheetId, startRowIndex: 0, endRowIndex: headerRows }, cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: "userEnteredFormat.textFormat.bold" } },
-        ];
-      }),
+      requests: laid.flatMap(({ tab, placed }, i) => formatRequests(existing.get(tab.name)!.properties!.sheetId!, tab, placed, i)),
     },
   });
 
-  return { spreadsheetId, tabs: [...tabs.keys()] };
+  return { spreadsheetId, tabs: tabs.map((t) => t.name) };
 }
 
 const DEBOUNCE_MS = 5_000;

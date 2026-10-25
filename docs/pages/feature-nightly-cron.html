@@ -20,7 +20,7 @@
 <section><h2>Purpose and access</h2><p><span class="pill read">feature</span></p></section>
 <section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>GET /api/cron/nightly</code></td><td>Requires header <code>Authorization: Bearer $CRON_SECRET</code>; otherwise 401.</td></tr></tbody></table></div></section>
 <section><h2>What is shown</h2><pre class="code"><code>// vercel.json
-{ "regions": ["bom1"], "crons": [{ "path": "/api/cron/nightly", "schedule": "0 18 * * *" }] }</code></pre>
+{ "regions": ["sin1"], "crons": [{ "path": "/api/cron/nightly", "schedule": "0 18 * * *" }] }</code></pre>
 <p><code>0 18 * * *</code> = 18:00 UTC = <b>23:30 IST</b>. On Vercel's Hobby plan the job runs once a day, at some point within that hour. Vercel sends the <code>CRON_SECRET</code> environment variable automatically.</p>
 <ol class="steps">
 <li><div>Check the secret.</div></li>

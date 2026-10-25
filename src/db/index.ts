@@ -11,7 +11,8 @@ const globalForDb = globalThis as unknown as { __vwDb?: DB };
 
 /**
  * DATABASE_URL:
- *  - Supabase pooler (transaction mode, port 6543) in production
+ *  - Supabase Session pooler (port 5432). The Transaction pooler (6543) stalls this app's
+ *    parallel page queries, so it is not used.
  *  - `pglite:./.pglite` for an embedded local Postgres with no setup
  */
 function connect(): DB {
@@ -28,7 +29,8 @@ function connect(): DB {
     return drizzlePglite(client, { schema }) as unknown as DB;
   }
 
-  const client = postgres(url, { prepare: false, max: 5 });
+  // Small pool, idle connections released quickly: each Vercel instance holds a session-pooler connection.
+  const client = postgres(url, { prepare: false, max: 3, idle_timeout: 20, connect_timeout: 10 });
   return drizzle(client, { schema });
 }
 

@@ -4,6 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { cashHolders, expenses, income, payments, players } from "@/db/schema";
 import { formatMonth } from "@/lib/dates";
+import { DATE_FORMAT, MONEY_FORMAT, MONEY_KINDS, PALETTE, STATUS_TONE, titleCase, type ColumnKind, type Tone } from "@/modules/sheets/layout";
 import {
   getChargeRows,
   getMatchFinanceSummaries,
@@ -12,24 +13,73 @@ import {
   type FinanceFilter,
 } from "@/modules/finance/queries";
 
-const MONEY = '"₹"#,##0';
-const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F5A46" } };
+const argb = (hex: string) => `FF${hex.slice(1).toUpperCase()}`;
+const fill = (hex: string): ExcelJS.Fill => ({ type: "pattern", pattern: "solid", fgColor: { argb: argb(hex) } });
 
-function addSheet(wb: ExcelJS.Workbook, name: string, columns: { header: string; key: string; width: number; money?: boolean }[], rows: Record<string, unknown>[], totals?: Record<string, unknown>) {
-  const ws = wb.addWorksheet(name, { views: [{ state: "frozen", ySplit: 1 }] });
-  ws.columns = columns.map((c) => ({ header: c.header, key: c.key, width: c.width, style: c.money ? { numFmt: MONEY } : {} }));
-  ws.getRow(1).eachCell((cell) => {
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    cell.fill = HEADER_FILL;
-    cell.alignment = { vertical: "middle" };
+type XlColumn = { header: string; key: string; width: number; kind?: ColumnKind };
+
+function toneOf(kind: ColumnKind, value: unknown): Tone | null {
+  if (kind === "status") return STATUS_TONE[String(value)] ?? null;
+  if (typeof value !== "number") return null;
+  if (kind === "due") return value > 0 ? "bad" : "good";
+  if (kind === "balance") return value > 0 ? "bad" : "good";
+  return null;
+}
+
+/** One sheet: red header with filter buttons, ₹ and date formats, zebra rows, green/red highlights, totals row. */
+function addSheet(wb: ExcelJS.Workbook, name: string, columns: XlColumn[], rows: Record<string, unknown>[], totals?: Record<string, unknown>) {
+  const ws = wb.addWorksheet(name, { views: [{ state: "frozen", ySplit: 1 }], properties: { tabColor: { argb: argb(PALETTE.brand) } } });
+  ws.columns = columns.map((c) => ({
+    header: c.header,
+    key: c.key,
+    width: c.width,
+    style: MONEY_KINDS.includes(c.kind ?? "text") ? { numFmt: MONEY_FORMAT } : c.kind === "date" ? { numFmt: DATE_FORMAT } : {},
+  }));
+  const header = ws.getRow(1);
+  header.height = 22;
+  header.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: argb(PALETTE.brandText) } };
+    cell.fill = fill(PALETTE.brand);
+    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   });
-  ws.addRows(rows);
+
+  const dated = rows.map((r) => {
+    const out = { ...r };
+    for (const c of columns) {
+      const v = out[c.key];
+      if (c.kind === "date" && typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) out[c.key] = new Date(`${v}T00:00:00Z`);
+      if (c.kind === "status" && typeof v === "string") out[c.key] = titleCase(v);
+    }
+    return out;
+  });
+  ws.addRows(dated);
+
+  dated.forEach((_, i) => {
+    const row = ws.getRow(i + 2);
+    if (i % 2 === 1) row.eachCell({ includeEmpty: true }, (cell, col) => col <= columns.length && (cell.fill = fill(PALETTE.band)));
+    columns.forEach((c, ci) => {
+      const cell = row.getCell(ci + 1);
+      const kind = c.kind ?? "text";
+      if (kind === "status" || kind === "number") cell.alignment = { horizontal: "center" };
+      if (kind === "in" || kind === "out") cell.font = { color: { argb: argb(PALETTE[kind === "in" ? "good" : "bad"].fg) } };
+      const tone = toneOf(kind, cell.value);
+      if (tone) {
+        cell.fill = fill(PALETTE[tone].bg);
+        cell.font = { bold: true, color: { argb: argb(PALETTE[tone].fg) } };
+      }
+    });
+  });
+
   if (totals) {
     const row = ws.addRow(totals);
-    row.font = { bold: true };
-    row.border = { top: { style: "thin" } };
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      if (col > columns.length) return;
+      cell.font = { bold: true };
+      cell.fill = fill(PALETTE.totals);
+      cell.border = { top: { style: "medium", color: { argb: argb(PALETTE.brand) } } };
+    });
   }
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1 + rows.length, column: columns.length } };
   return ws;
 }
 
@@ -58,10 +108,10 @@ export async function buildFinanceWorkbook(filter: FinanceFilter, opts: { admin:
       [
         { header: "Player", key: "name", width: 24 },
         { header: "Matches", key: "matches", width: 10 },
-        { header: "Charged", key: "charged", width: 12, money: true },
-        { header: "Paid", key: "paid", width: 12, money: true },
-        { header: "Due (this period)", key: "due", width: 16, money: true },
-        { header: "Overall balance", key: "balance", width: 16, money: true },
+        { header: "Charged", key: "charged", width: 12, kind: "money" },
+        { header: "Paid", key: "paid", width: 12, kind: "in" },
+        { header: "Due (this period)", key: "due", width: 16, kind: "due" },
+        { header: "Overall balance", key: "balance", width: 16, kind: "balance" },
       ],
       byPlayer.map((p) => ({ ...p, balance: balances.get(p.playerId) ?? 0 })),
       { name: "Total", matches: byPlayer.reduce((s, p) => s + p.matches, 0), charged: sum("charged"), paid: sum("paid"), due: sum("due") },
@@ -73,15 +123,15 @@ export async function buildFinanceWorkbook(filter: FinanceFilter, opts: { admin:
     wb,
     "By match",
     [
-      { header: "Date", key: "date", width: 14 },
+      { header: "Date", key: "date", width: 14, kind: "date" },
       { header: "Opponent", key: "opponent", width: 28 },
       { header: "Type", key: "kind", width: 12 },
-      { header: "Charged?", key: "chargeable", width: 10 },
-      { header: "Fee / player", key: "fee", width: 12, money: true },
+      { header: "Charged?", key: "chargeable", width: 10, kind: "status" },
+      { header: "Fee / player", key: "fee", width: 12, kind: "money" },
       { header: "Players", key: "players", width: 10 },
-      { header: "Charged", key: "charged", width: 12, money: true },
-      { header: "Paid", key: "paid", width: 12, money: true },
-      { header: "Due", key: "due", width: 12, money: true },
+      { header: "Charged", key: "charged", width: 12, kind: "money" },
+      { header: "Paid", key: "paid", width: 12, kind: "in" },
+      { header: "Due", key: "due", width: 12, kind: "due" },
     ],
     matchRows.map((m) => ({
       date: m.startTime.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }),
@@ -107,13 +157,13 @@ export async function buildFinanceWorkbook(filter: FinanceFilter, opts: { admin:
       wb,
       "Charges",
       [
-        { header: "Date", key: "chargeDate", width: 12 },
+        { header: "Date", key: "chargeDate", width: 12, kind: "date" },
         { header: "Player", key: "playerName", width: 24 },
         { header: "Description", key: "description", width: 34 },
-        { header: "Amount", key: "amount", width: 10, money: true },
-        { header: "Paid", key: "paid", width: 10, money: true },
-        { header: "Due", key: "due", width: 10, money: true },
-        { header: "Status", key: "status", width: 10 },
+        { header: "Amount", key: "amount", width: 10, kind: "money" },
+        { header: "Paid", key: "paid", width: 10, kind: "in" },
+        { header: "Due", key: "due", width: 10, kind: "due" },
+        { header: "Status", key: "status", width: 10, kind: "status" },
       ],
       rows.map((r) => ({ ...r })),
     );
@@ -130,9 +180,9 @@ export async function buildFinanceWorkbook(filter: FinanceFilter, opts: { admin:
       wb,
       "Payments",
       [
-        { header: "Date", key: "paidOn", width: 12 },
+        { header: "Date", key: "paidOn", width: 12, kind: "date" },
         { header: "Player", key: "name", width: 24 },
-        { header: "Amount", key: "amount", width: 12, money: true },
+        { header: "Amount", key: "amount", width: 12, kind: "in" },
         { header: "Mode", key: "mode", width: 10 },
         { header: "Received by", key: "holder", width: 16 },
         { header: "Reference", key: "reference", width: 20 },
@@ -145,10 +195,10 @@ export async function buildFinanceWorkbook(filter: FinanceFilter, opts: { admin:
       wb,
       "Expenses",
       [
-        { header: "Date", key: "spentOn", width: 12 },
+        { header: "Date", key: "spentOn", width: 12, kind: "date" },
         { header: "Category", key: "category", width: 14 },
         { header: "Description", key: "description", width: 34 },
-        { header: "Amount", key: "amount", width: 12, money: true },
+        { header: "Amount", key: "amount", width: 12, kind: "out" },
         { header: "Paid from", key: "holder", width: 16 },
         { header: "Paid by", key: "paidBy", width: 16 },
         { header: "Mode", key: "mode", width: 10 },
@@ -160,10 +210,10 @@ export async function buildFinanceWorkbook(filter: FinanceFilter, opts: { admin:
       wb,
       "Income",
       [
-        { header: "Date", key: "receivedOn", width: 12 },
+        { header: "Date", key: "receivedOn", width: 12, kind: "date" },
         { header: "Category", key: "category", width: 14 },
         { header: "Description", key: "description", width: 34 },
-        { header: "Amount", key: "amount", width: 12, money: true },
+        { header: "Amount", key: "amount", width: 12, kind: "in" },
         { header: "Received by", key: "holder", width: 16 },
       ],
       inc.map((i) => ({ ...i, holder: i.holderId ? holderName.get(i.holderId) : "" })),

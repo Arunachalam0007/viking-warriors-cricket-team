@@ -18,7 +18,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <ThemeToggle />
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl min-w-0 px-4 pt-5 pb-24 md:px-6 md:pb-10">{children}</main>
+        {/* SidebarInset is already the page's <main> */}
+        <div className="mx-auto w-full max-w-6xl min-w-0 px-4 pt-5 pb-24 md:px-6 md:pb-10">{children}</div>
       </SidebarInset>
       <MobileNav />
     </SidebarProvider>

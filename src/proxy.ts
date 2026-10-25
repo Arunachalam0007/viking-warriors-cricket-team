@@ -28,7 +28,9 @@ export async function proxy(request: NextRequest) {
 
   // Optimistic gate: anonymous visitors never reach admin rendering. Each admin
   // page and action still verifies the admin list itself.
-  if (!data?.claims && request.nextUrl.pathname.startsWith("/admin")) {
+  // DEV_ADMIN_EMAIL (development only, see lib/auth.ts) stands in for a login locally.
+  const devAdmin = process.env.NODE_ENV === "development" && Boolean(process.env.DEV_ADMIN_EMAIL);
+  if (!data?.claims && !devAdmin && request.nextUrl.pathname.startsWith("/admin")) {
     const login = new URL("/login", request.url);
     login.searchParams.set("next", request.nextUrl.pathname);
     return NextResponse.redirect(login);

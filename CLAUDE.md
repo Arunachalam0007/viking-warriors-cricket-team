@@ -25,6 +25,9 @@ Full docs: `docs/index.html` (architecture) and `docs/pages/*.html` (one per pag
 9. **Every admin `page.tsx` calls `await requireAdmin()` first.** Layouts and pages render in parallel, so the check in `admin/layout.tsx` alone leaks page data. The proxy redirect is only optimistic.
 10. Phone numbers, payments screenshots, audit log, expenses/income and cash holders are admin-only.
 
+## Database connection
+`DATABASE_URL` must be the Supabase **Session pooler** (port 5432). The Transaction pooler (6543) stalls the app's parallel page queries (pages hang forever). Vercel region `sin1` sits next to the Supabase project (ap-southeast-1); move both together.
+
 ## Layout
 - `src/modules/<feature>/` — `queries.ts` (reads), `actions.ts` ("use server" mutations), domain logic
 - `src/app/(app)/` — public pages; `src/app/(app)/admin/` — admin pages (layout calls `requireAdmin()`)
