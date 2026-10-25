@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Manage players · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html" aria-current="page">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Admin page</div>
+<h1>Manage players</h1>
+<p class="lede">Edit names, phone numbers, photos, member / guest and active status; add players who are not on CricHeroes.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill admin">admin only</span></p><p>Admins only. <code>proxy.ts</code> redirects anonymous visitors to <code>/login</code>; the page calls <code>requireAdmin()</code> before loading data, and every action re-checks through <code>adminAction()</code>.</p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/admin/players</code></td><td>No parameters; search and filter chips are client-side.</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><ul>
+<li>Search box and filter chips: Members, Guests, Inactive, All.</li>
+<li>Card per player: photo, name, CricHeroes name when different, phone, member / guest, active, captain.</li>
+<li><b>Edit</b> dialog: name, phone, member, active, notes, photo upload, "Use CricHeroes photo".</li>
+<li><b>Add player</b> dialog: name, phone, member.</li>
+</ul></section>
+<section><h2>Actions</h2><div class="callout"><p>Every action below is a server action wrapped by <code>adminAction()</code> (<code>src/lib/action.ts</code>): admin check → zod validation → one database transaction → <code>audit_log</code> entry → <code>refresh()</code> → Google Sheet rewrite after the response (<code>after(() =&gt; syncSheet("change"))</code>).</p></div><div class="table-wrap"><table><thead><tr><th>Control</th><th>Server action</th><th>What happens</th></tr></thead><tbody><tr><td>Save</td><td><code>updatePlayer</code></td><td>Updates name / phone / is_member / is_active / notes. Renaming sets <code>name_locked</code>. Switching member ↔ guest reruns <code>reconcileMatchCharges</code> for every match the player played</td></tr><tr><td>Upload photo</td><td><code>uploadPlayerPhoto</code></td><td>Image ≤ 3 MB → Supabase Storage bucket <code>player-photos</code> (created if missing) → <code>players.photo_url</code>. Not wrapped by adminAction but calls <code>requireAdmin</code> and <code>audit</code> itself</td></tr><tr><td>Use CricHeroes photo</td><td><code>resetPlayerPhoto</code></td><td>Clears <code>photo_url</code></td></tr><tr><td>Add player</td><td><code>createPlayer</code></td><td>Inserts a player without a CricHeroes id (name locked)</td></tr></tbody></table></div></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>players.*</code></td><td>All fields</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>match_players, charges</code></td><td>Recalculated on member ↔ guest</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>storage.objects (Supabase)</code></td><td>Photos</td><td><span class="pill write">write</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/(app)/admin/players/page.tsx</code></td><td>Page</td></tr><tr><td><code>src/components/admin/ops/players-manager.tsx</code></td><td>List, filters, edit / add dialogs</td></tr><tr><td><code>src/modules/players/actions.ts</code></td><td><code>updatePlayer</code>, <code>uploadPlayerPhoto</code>, <code>resetPlayerPhoto</code>, <code>createPlayer</code></td></tr><tr><td><code>src/lib/supabase/server.ts</code></td><td><code>createSupabaseAdminClient</code> (service role, server only)</td></tr></tbody></table></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Phone numbers are stored for WhatsApp reminders (phase 2) and never shown publicly.</li><li>Photo upload needs <code>SUPABASE_SECRET_KEY</code>; without it the action returns a clear error.</li></ul></section>
+<div class="pager"><a href="admin-expenses.html">← Expenses &amp; income</a><a href="admin-sync.html">Sync &amp; logs →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>

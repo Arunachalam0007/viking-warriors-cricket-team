@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Match fees · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html" aria-current="page">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Admin page</div>
+<h1>Match fees</h1>
+<p class="lede">The core admin screen: per-month match list and a per-match editor for who played, fee settings, and paid / not paid / waived per player.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill admin">admin only</span></p><p>Admins only. <code>proxy.ts</code> redirects anonymous visitors to <code>/login</code>; the page calls <code>requireAdmin()</code> before loading data, and every action re-checks through <code>adminAction()</code>.</p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/admin/fees?month=YYYY-MM</code></td><td>Past matches of that month with charged / paid / due. Default: the month of the newest match.</td></tr><tr><td><code>/admin/fees/[matchId]</code></td><td>Editor for one match (<code>matches.id</code>).</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><h3>Month list</h3>
+<p>Totals for the month and one row per past match: date, opponent, result, type, charged on/off, fee × players, charged / paid / due, link to the editor.</p>
+<h3>Match editor</h3>
+<ul>
+<li><b>Fee settings</b> — Charge match fee (switch), Fee per player (₹), Match type (individual / tournament), Notes. Saving locks these from the nightly sync.</li>
+<li><b>Players &amp; fees</b> — every player in <code>match_players</code>: avatar, name, member/guest, <i>Played</i> switch, amount (inline edit), status badge, <i>Mark paid</i> / <i>Unpaid</i>, <i>Waive</i> / <i>Restore</i>. Guests show "Not charged (guest)". Charges for players no longer marked as played but already paid or edited appear as "did not play" rows so they can be waived.</li>
+<li><b>Add player who played</b> — any player not in the roster.</li>
+<li><b>Mark all paid</b> — all unpaid fees of the match in one go, with payment options.</li>
+<li><b>Totals</b> — charged, paid, due.</li>
+</ul></section>
+<section><h2>Actions</h2><div class="callout"><p>Every action below is a server action wrapped by <code>adminAction()</code> (<code>src/lib/action.ts</code>): admin check → zod validation → one database transaction → <code>audit_log</code> entry → <code>refresh()</code> → Google Sheet rewrite after the response (<code>after(() =&gt; syncSheet("change"))</code>).</p></div><div class="table-wrap"><table><thead><tr><th>Control</th><th>Server action</th><th>What happens</th></tr></thead><tbody><tr><td>Save settings</td><td><code>updateMatchFinance</code></td><td>Updates <code>chargeable</code>, <code>fee_per_player</code>, <code>kind</code>, <code>notes</code>; sets <code>finance_locked</code>; <code>reconcileMatchCharges</code> creates / updates / removes fees</td></tr><tr><td>Played switch</td><td><code>setMatchPlayer</code></td><td>Upserts <code>match_players</code> with <code>played</code> and <code>admin_locked = true</code>; reconcile → fee created or removed</td></tr><tr><td>Add player who played</td><td><code>setMatchPlayer (played: true)</code></td><td>New <code>match_players</code> row with <code>source = admin</code>; members get a fee</td></tr><tr><td>Amount field</td><td><code>updateChargeAmount</code></td><td><code>setChargeAmount</code>: new amount, <code>admin_locked</code>; trims allocations above the amount; applies credit</td></tr><tr><td>Mark paid</td><td><code>markPaid</code></td><td>Dialog: paid by (UPI/GPay, cash, bank, other), received by (cash holder, default Rahul), date. <code>markChargePaid</code> inserts a <code>quick</code> payment for the outstanding amount + allocation</td></tr><tr><td>Unpaid</td><td><code>markUnpaid</code></td><td>Removes the charge's allocations; deletes quick payments left empty; lump-sum money becomes credit</td></tr><tr><td>Waive / Restore</td><td><code>waiveCharge</code></td><td>Sets <code>waived</code>, <code>admin_locked</code>; waiving frees any money paid as credit</td></tr><tr><td>Mark all paid</td><td><code>markAllPaidForMatch</code></td><td>Calls <code>markChargePaid</code> for every non-waived fee of the match</td></tr></tbody></table></div></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>matches.chargeable, fee_per_player, kind, notes, finance_locked</code></td><td>Fee settings</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>match_players.played, source, admin_locked</code></td><td>Roster</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>charges (kind = match_fee)</code></td><td>Fees per player</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>payments, payment_allocations</code></td><td>Mark paid / unpaid</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>cash_holders</code></td><td>"Received by" options</td><td><span class="pill read">read</span></td></tr><tr><td><code>players.is_member</code></td><td>Guests are not charged</td><td><span class="pill read">read</span></td></tr><tr><td><code>audit_log</code></td><td>One row per action</td><td><span class="pill write">write</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/(app)/admin/fees/page.tsx</code></td><td>Month list</td></tr><tr><td><code>src/app/(app)/admin/fees/[matchId]/page.tsx</code></td><td>Match editor</td></tr><tr><td><code>src/components/admin/finance/match-settings-form.tsx</code></td><td>Fee settings form</td></tr><tr><td><code>src/components/admin/finance/roster-editor.tsx</code></td><td>Players &amp; fees, add player, mark all paid</td></tr><tr><td><code>src/components/admin/finance/charge-controls.tsx</code></td><td>Amount input, mark paid / unpaid / waive</td></tr><tr><td><code>src/components/admin/finance/payment-options.tsx</code></td><td>Mode / holder / date fields</td></tr><tr><td><code>src/modules/finance/actions.ts</code></td><td>Server actions</td></tr><tr><td><code>src/modules/finance/ledger.ts</code></td><td><code>reconcileMatchCharges</code>, <code>markChargePaid</code>, <code>markChargeUnpaid</code>, <code>setChargeAmount</code>, <code>setChargeWaived</code></td></tr><tr><td><code>src/modules/stats/queries.ts</code></td><td><code>getMatchDetail</code></td></tr></tbody></table></div></section>
+<section><h2>Data flow</h2><div class="frame"><pre class="mermaid">
+sequenceDiagram
+  participant A as Admin
+  participant UI as RosterEditor
+  participant S as setMatchPlayer
+  participant L as reconcileMatchCharges
+  participant D as Postgres
+  A->>UI: switch Played off for a player
+  UI->>S: matchId, playerId, played false
+  S->>D: match_players played=false, admin_locked=true
+  S->>L: reconcile match
+  L->>D: delete unpaid unlocked fee (keep if paid or locked)
+  S->>D: audit_log
+  S-->>UI: ok, page refreshes
+</pre></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Tournament matches are not charged unless an admin switches <i>Charge match fee</i> on (and may set a fee).</li><li>Changing the default fee in Settings never changes saved matches; set the fee here per match.</li><li>"Unpaid" on a charge paid from a lump sum turns that money into credit, which <code>applyCredit</code> may re-apply to the oldest open charge. To truly reverse, delete the payment on the Payments page.</li></ul></section>
+<div class="pager"><a href="admin-overview.html">← Revenue overview</a><a href="admin-payments.html">Payments →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, securityLevel: "strict", theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
+</script>
+</body>
+</html>

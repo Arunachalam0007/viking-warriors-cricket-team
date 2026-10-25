@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Collections · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html" aria-current="page">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Admin page</div>
+<h1>Collections</h1>
+<p class="lede">Tournament shares, monthly fees and special collections charged to a chosen list of players.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill admin">admin only</span></p><p>Admins only. <code>proxy.ts</code> redirects anonymous visitors to <code>/login</code>; the page calls <code>requireAdmin()</code> before loading data, and every action re-checks through <code>adminAction()</code>.</p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/admin/collections</code></td><td>List and New collection form.</td></tr><tr><td><code>/admin/collections/[id]</code></td><td>One collection (<code>collections.id</code>).</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><ul>
+<li><b>List</b> — each collection with type, due date, players, charged / paid / due.</li>
+<li><b>New collection</b> — type (tournament, monthly, special, other), title, description, due date, amount per player, player checklist (Select all / Active members / Clear; active members ticked by default).</li>
+<li><b>Detail</b> — totals; per-player rows with editable amount, status, mark paid / unpaid, waive; player-list editor; delete.</li>
+</ul></section>
+<section><h2>Actions</h2><div class="callout"><p>Every action below is a server action wrapped by <code>adminAction()</code> (<code>src/lib/action.ts</code>): admin check → zod validation → one database transaction → <code>audit_log</code> entry → <code>refresh()</code> → Google Sheet rewrite after the response (<code>after(() =&gt; syncSheet("change"))</code>).</p></div><div class="table-wrap"><table><thead><tr><th>Control</th><th>Server action</th><th>What happens</th></tr></thead><tbody><tr><td>Create</td><td><code>createCollection</code></td><td>Inserts <code>collections</code> and one <code>collection</code> charge per player (admin-locked, dated <code>due_on</code>); applies credit</td></tr><tr><td>Save player list</td><td><code>setCollectionPlayers</code></td><td>Deletes charges for removed players, adds charges for new ones</td></tr><tr><td>Amount / paid / unpaid / waive</td><td><code>updateChargeAmount</code>, <code>markPaid</code>, <code>markUnpaid</code>, <code>waiveCharge</code></td><td>Same ledger functions as match fees</td></tr><tr><td>Delete collection</td><td><code>deleteCollection</code></td><td>Deletes the collection and its charges (cascade); any money paid becomes credit</td></tr></tbody></table></div></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>collections.*</code></td><td>Collection header</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>charges (kind = collection)</code></td><td>Per-player amounts</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>payments, payment_allocations</code></td><td>Paid status</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>players</code></td><td>Checklist</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/(app)/admin/collections/page.tsx</code></td><td>List + new form</td></tr><tr><td><code>src/app/(app)/admin/collections/[id]/page.tsx</code></td><td>Detail</td></tr><tr><td><code>src/components/admin/finance/collection-forms.tsx</code></td><td><code>NewCollectionForm</code>, <code>PlayerChecklist</code>, <code>CollectionPlayersEditor</code>, <code>DeleteCollectionButton</code></td></tr><tr><td><code>src/components/admin/finance/charge-controls.tsx</code></td><td>Row controls</td></tr><tr><td><code>src/modules/finance/actions.ts</code></td><td><code>createCollection</code>, <code>setCollectionPlayers</code>, <code>deleteCollection</code></td></tr></tbody></table></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Use a collection for every tournament (e.g. ₹400 SPARTANS share) — tournament matches are not auto-charged.</li><li>Collection charges appear on the public Finance page and in the sheet's Collections tab.</li></ul></section>
+<div class="pager"><a href="admin-payments.html">← Payments</a><a href="admin-expenses.html">Expenses &amp; income →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>

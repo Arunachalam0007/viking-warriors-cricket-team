@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Players · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html" aria-current="page">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Public page</div>
+<h1>Players</h1>
+<p class="lede">Grid of squad members with photos, then guests who have played. Each card opens the player profile.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill public">public</span></p><p>Open to everyone; no login. Pages are rendered on the server on every request from the app database (never from CricHeroes directly).</p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/players</code></td><td>No parameters.</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><ul>
+<li><b>Squad members</b> (<code>is_member = true</code>) as cards: photo, name, captain badge, batting / bowling category, matches, runs, wickets (all-time since sync start).</li>
+<li><b>Guest players</b> — non-members who appear in at least one stats row, shown smaller.</li>
+</ul></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>players.*</code></td><td>Card content; members first, active first, then by name (<code>listPlayers</code>)</td><td><span class="pill read">read</span></td></tr><tr><td><code>players.name, photo_url, ch_photo_url, is_member</code></td><td>Name, photo (custom photo wins), guest badge</td><td><span class="pill read">read</span></td></tr><tr><td><code>player_match_stats.*</code></td><td>Runs, balls, 4s/6s, wickets, balls bowled, runs conceded, maidens, catches, stumpings, run outs</td><td><span class="pill read">read</span></td></tr><tr><td><code>match_players.played</code></td><td>Only rows with played = true count</td><td><span class="pill read">read</span></td></tr><tr><td><code>matches.status, start_time</code></td><td>Only past matches; period filter in IST</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/(app)/players/page.tsx</code></td><td>Page</td></tr><tr><td><code>src/modules/players/queries.ts</code></td><td><code>listPlayers</code>, <code>playerPhoto</code></td></tr><tr><td><code>src/modules/stats/queries.ts</code></td><td><code>getPlayerStats</code></td></tr></tbody></table></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Photo = admin-uploaded <code>photo_url</code> if set, else the CricHeroes photo, else initials.</li><li>Phone numbers are never shown on public pages.</li><li>Members come from the CricHeroes squad page; admins can switch member ↔ guest in Manage players.</li></ul></section>
+<div class="pager"><a href="dashboard.html">← Dashboard</a><a href="player-profile.html">Player profile →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>

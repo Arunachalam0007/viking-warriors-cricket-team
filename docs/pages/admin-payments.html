@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Payments · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html" aria-current="page">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Admin page</div>
+<h1>Payments</h1>
+<p class="lede">Record money received, see every player's balance, add opening balances / adjustments, and manage payment history.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill admin">admin only</span></p><p>Admins only. <code>proxy.ts</code> redirects anonymous visitors to <code>/login</code>; the page calls <code>requireAdmin()</code> before loading data, and every action re-checks through <code>adminAction()</code>.</p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/admin/payments</code></td><td>No parameters.</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><ul>
+<li><b>Record payment</b> form — player (with current balance), amount, date, mode, received by, reference, note.</li>
+<li><b>Balances</b> — every player: charged, paid, balance; sortable; "Record payment" pre-fills the form.</li>
+<li><b>Adjustment / opening balance</b> — one-off charge for a player (e.g. dues carried over from the old sheet).</li>
+<li><b>Payment history</b> — last 200 payments with player, amount, mode, holder, reference; delete.</li>
+</ul></section>
+<section><h2>Actions</h2><div class="callout"><p>Every action below is a server action wrapped by <code>adminAction()</code> (<code>src/lib/action.ts</code>): admin check → zod validation → one database transaction → <code>audit_log</code> entry → <code>refresh()</code> → Google Sheet rewrite after the response (<code>after(() =&gt; syncSheet("change"))</code>).</p></div><div class="table-wrap"><table><thead><tr><th>Control</th><th>Server action</th><th>What happens</th></tr></thead><tbody><tr><td>Record payment</td><td><code>recordPaymentAction</code></td><td><code>recordPayment</code>: inserts a <code>manual</code> payment, then <code>applyCredit</code> settles the oldest open charges; extra stays as credit</td></tr><tr><td>Add adjustment</td><td><code>addAdjustment</code></td><td>Inserts an <code>adjustment</code> charge (admin-locked) and applies any credit</td></tr><tr><td>Delete payment</td><td><code>deletePaymentAction</code></td><td>Deletes the payment (allocations cascade) and re-applies remaining credit</td></tr></tbody></table></div></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>payments.*</code></td><td>Record / list / delete</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>payment_allocations</code></td><td>Created by applyCredit</td><td><span class="pill write">write</span></td></tr><tr><td><code>charges (kind = adjustment)</code></td><td>Adjustments</td><td><span class="pill write">write</span></td></tr><tr><td><code>players, charges, payments</code></td><td>Balances</td><td><span class="pill read">read</span></td></tr><tr><td><code>cash_holders</code></td><td>Received by</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/(app)/admin/payments/page.tsx</code></td><td>Page</td></tr><tr><td><code>src/components/admin/finance/payments-workspace.tsx</code></td><td>Record form, balances table, adjustment form</td></tr><tr><td><code>src/components/admin/finance/payments-list.tsx</code></td><td>History and delete</td></tr><tr><td><code>src/modules/finance/actions.ts</code></td><td><code>recordPaymentAction</code>, <code>addAdjustment</code>, <code>deletePaymentAction</code></td></tr><tr><td><code>src/modules/finance/ledger.ts</code></td><td><code>recordPayment</code>, <code>applyCredit</code>, <code>deletePayment</code></td></tr><tr><td><code>src/modules/admin/queries.ts</code></td><td><code>listPayments</code>, <code>listCashHolders</code></td></tr></tbody></table></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Amounts are whole rupees, at least ₹1.</li><li>A player's balance below zero is credit and is used automatically for future charges.</li></ul></section>
+<div class="pager"><a href="admin-match-fees.html">← Match fees</a><a href="admin-collections.html">Collections →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>

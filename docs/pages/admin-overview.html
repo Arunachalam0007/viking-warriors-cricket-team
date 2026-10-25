@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Revenue overview · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html" aria-current="page">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Admin page</div>
+<h1>Revenue overview</h1>
+<p class="lede">Admin home: everything the team has charged, collected and spent, who holds the money, top dues and sync health.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill admin">admin only</span></p><p>Admins only. <code>proxy.ts</code> redirects anonymous visitors to <code>/login</code>; the page calls <code>requireAdmin()</code> before loading data, and every action re-checks through <code>adminAction()</code>.</p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/admin</code></td><td>No parameters.</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><ul>
+<li><b>Tiles</b> — Fund balance (collected + income − expenses), Outstanding dues (sum of positive player balances), Collected (all payments), Fees charged (non-waived charges), Player credit (advance payments), Other income, Expenses, Cash in hand (all holders).</li>
+<li><b>Month by month</b> chart — charged, collected, expenses, other income per month.</li>
+<li><b>Cash in hand</b> — per cash holder (Rahul by default): received from players, income, spent, in hand.</li>
+<li><b>Top dues</b> — 10 players who owe the most, linking to Payments.</li>
+<li><b>Sync status</b> — last CricHeroes and Google Sheet run with a <i>Sync CricHeroes now</i> button.</li>
+<li><b>Admin pages</b> quick links and <b>Download full admin Excel</b> (<code>/api/export/finance?scope=admin</code>).</li>
+</ul></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>charges, payments, income, expenses</code></td><td>Totals and monthly series (<code>getRevenueSummary</code>)</td><td><span class="pill read">read</span></td></tr><tr><td><code>cash_holders, payments.holder_id, income.holder_id, expenses.holder_id</code></td><td>Cash in hand per holder</td><td><span class="pill read">read</span></td></tr><tr><td><code>players + charges + payments</code></td><td>Top dues (<code>getPlayerBalances</code>)</td><td><span class="pill read">read</span></td></tr><tr><td><code>sync_runs</code></td><td>Sync status (<code>lastSuccessfulSync</code>)</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/(app)/admin/page.tsx</code></td><td>Page</td></tr><tr><td><code>src/modules/finance/queries.ts</code></td><td><code>getRevenueSummary</code>, <code>getPlayerBalances</code></td></tr><tr><td><code>src/modules/admin/queries.ts</code></td><td><code>lastSuccessfulSync</code></td></tr><tr><td><code>src/components/admin/ops/revenue-chart.tsx</code></td><td>Monthly chart</td></tr><tr><td><code>src/components/admin/ops/sync-buttons.tsx</code></td><td><code>SyncNowButton</code> → <code>runSyncNow</code></td></tr><tr><td><code>src/components/admin/ops/sync-status.tsx</code></td><td>Status line and badge</td></tr></tbody></table></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Fund balance and cash in hand should match; payments or expenses without a holder show as "Not assigned".</li></ul></section>
+<div class="pager"><a href="login.html">← Admin login</a><a href="admin-match-fees.html">Match fees →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Matches · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html" aria-current="page">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Public page</div>
+<h1>Matches</h1>
+<p class="lede">All synced matches since the sync start date, with filters for month and match type.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill public">public</span></p><p>Open to everyone; no login. Pages are rendered on the server on every request from the app database (never from CricHeroes directly).</p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/matches</code></td><td>All matches, newest first.</td></tr><tr><td><code>month=YYYY-MM</code></td><td>Only matches in that IST month.</td></tr><tr><td><code>kind=individual|tournament</code></td><td>Only that match type.</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><p>One card per match: date and time (IST), opponent logo and name, both scores, result badge (Won / Lost / Abandoned / Tied / No result / Upcoming), type badge (individual or tournament name), ground. Each card links to the match detail.</p></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>matches.*</code></td><td>All card fields</td><td><span class="pill read">read</span></td></tr><tr><td><code>settings.sync_start_date</code></td><td>Month options</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/(app)/matches/page.tsx</code></td><td>Page</td></tr><tr><td><code>src/modules/stats/queries.ts</code></td><td><code>getMatches(db, {from, to, kind})</code></td></tr><tr><td><code>src/components/shared.tsx</code></td><td><code>OutcomeBadge</code></td></tr></tbody></table></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Matches before <code>sync_start_date</code> (1 Oct 2026) are never imported.</li><li>Match type comes from CricHeroes (tournament name present → tournament) unless an admin changed it.</li></ul></section>
+<div class="pager"><a href="leaderboard.html">← Leaderboard</a><a href="match-detail.html">Match detail →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>

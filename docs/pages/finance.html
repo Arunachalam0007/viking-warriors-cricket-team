@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Finance · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html" aria-current="page">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Public page</div>
+<h1>Finance</h1>
+<p class="lede">Public match-fee finance: who played, what each player owes and has paid, by month, match, player and status, with Excel export.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill public">public</span></p><p>Open to everyone; no login. Pages are rendered on the server on every request from the app database (never from CricHeroes directly).</p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/finance</code></td><td>All months since <code>finance_start_date</code> (1 Oct 2026).</td></tr><tr><td><code>month=YYYY-MM</code></td><td>Charges dated in that IST month. Changing it clears <code>matchId</code>.</td></tr><tr><td><code>matchId=&amp;lt;uuid&amp;gt;</code></td><td>Only one match (options: past matches in the chosen month).</td></tr><tr><td><code>playerId=&amp;lt;uuid&amp;gt;</code></td><td>Only one player (hidden when balances are not public).</td></tr><tr><td><code>status=due|unpaid|partial|paid|waived</code></td><td>Charge status; <code>due</code> = unpaid or part paid.</td></tr><tr><td><code>view=players|matches|charges</code></td><td>Tab. Default <code>players</code>; forced to <code>matches</code> when balances are not public.</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><ul>
+<li><b>Totals tiles</b> for the filter: Charged (non-waived), Collected (allocated), Due.</li>
+<li><b>By player</b> — matches, charged, paid, due for the filter, plus overall balance; totals row. Cards on phones, table on larger screens.</li>
+<li><b>By match</b> — date, opponent, charged?, fee, players, charged, paid, due (<code>getMatchFinanceSummaries</code>).</li>
+<li><b>All entries</b> — every charge with player, description, amount, paid, due, status badge.</li>
+<li><b>Pay via UPI</b> bar with copy button when setting <code>upi_id</code> is set.</li>
+<li><b>Export to Excel</b> — downloads <code>/api/export/finance</code> with the same parameters (see <a href="feature-excel-export.html">Excel export</a>).</li>
+</ul></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>charges.*</code></td><td>Rows, filters by <code>charge_date</code>, <code>match_id</code>, <code>player_id</code>, <code>kind</code></td><td><span class="pill read">read</span></td></tr><tr><td><code>payment_allocations.amount</code></td><td>Paid / due per charge</td><td><span class="pill read">read</span></td></tr><tr><td><code>payments.amount</code></td><td>Overall balance column</td><td><span class="pill read">read</span></td></tr><tr><td><code>matches.*</code></td><td>Match filter options and by-match view</td><td><span class="pill read">read</span></td></tr><tr><td><code>players.name, photo_url, ch_photo_url</code></td><td>Names and photos</td><td><span class="pill read">read</span></td></tr><tr><td><code>settings.finance_start_date, public_show_balances, upi_id</code></td><td>Month options, privacy switch, UPI bar</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/(app)/finance/page.tsx</code></td><td>Page: filters, tabs, views</td></tr><tr><td><code>src/modules/finance/queries.ts</code></td><td><code>getChargeRows</code>, <code>summarizeByPlayer</code>, <code>getMatchFinanceSummaries</code>, <code>getPlayerBalances</code></td></tr><tr><td><code>src/modules/finance/rules.ts</code></td><td><code>chargeStatus</code></td></tr><tr><td><code>src/components/url-select.tsx</code></td><td>Filter selects stored in the URL (<code>resets</code> clears dependent filters)</td></tr><tr><td><code>src/components/public/link-tabs.tsx</code></td><td>View tabs</td></tr><tr><td><code>src/components/public/copy-button.tsx</code></td><td>UPI copy button</td></tr><tr><td><code>src/app/api/export/finance/route.ts</code></td><td>Excel download</td></tr></tbody></table></div></section>
+<section><h2>Data flow</h2><div class="frame"><pre class="mermaid">
+flowchart LR
+  U["Visitor picks month / match / player / status"] --> URL["URL search params"]
+  URL --> PG["finance/page.tsx validates params"]
+  PG --> Q["getChargeRows(filter)"]
+  Q --> V1["By player: summarizeByPlayer"]
+  Q --> V3["All entries"]
+  PG --> V2["By match: getMatchFinanceSummaries"]
+  PG --> X["Export link with same params"] --> API["/api/export/finance"]
+</pre></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Invalid parameter values are ignored (regex / UUID checks), never errors.</li><li>Due for a waived charge is 0; paid is capped at the amount.</li><li>Overall balance can be negative = credit (paid in advance).</li><li>Phone numbers, payment details, expenses and cash holders are never shown here.</li></ul></section>
+<div class="pager"><a href="match-detail.html">← Match detail</a><a href="reports.html">Reports →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, securityLevel: "strict", theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
+</script>
+</body>
+</html>

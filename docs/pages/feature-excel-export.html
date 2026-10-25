@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Excel export · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html" aria-current="page">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Feature</div>
+<h1>Excel export</h1>
+<p class="lede">Download the finance view as a formatted .xlsx workbook.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill read">feature</span></p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>GET /api/export/finance</code></td><td>Public workbook for all months.</td></tr><tr><td><code>month, from, to, matchId, playerId, status, kind</code></td><td>Same filters as the Finance page (validated by <code>parseFinanceFilter</code>; invalid values dropped).</td></tr><tr><td><code>scope=admin</code></td><td>Admin workbook; requires an admin session, else 401.</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><div class="table-wrap"><table><thead><tr><th>Sheet</th><th>Public</th><th>Admin</th><th>Columns</th></tr></thead><tbody><tr><td>By player</td><td>yes*</td><td>yes</td><td>Player, Matches, Charged, Paid, Due (this period), Overall balance + total row</td></tr><tr><td>By match</td><td>yes</td><td>yes</td><td>Date, Opponent, Type, Charged?, Fee / player, Players, Charged, Paid, Due + total row</td></tr><tr><td>Charges</td><td>yes*</td><td>yes</td><td>Date, Player, Description, Amount, Paid, Due, Status</td></tr><tr><td>Payments</td><td>–</td><td>yes</td><td>Date, Player, Amount, Mode, Received by, Reference, Note</td></tr><tr><td>Expenses</td><td>–</td><td>yes</td><td>Date, Category, Description, Amount, Paid from, Paid by, Mode</td></tr><tr><td>Income</td><td>–</td><td>yes</td><td>Date, Category, Description, Amount, Received by</td></tr></tbody></table></div><p>* Omitted from the public workbook when <code>public_show_balances</code> is off. Headers are bold on pitch green, frozen, with auto-filter; money columns use the ₹ number format. File name: <code>viking-warriors-finance-&lt;month or date&gt;[-admin].xlsx</code>.</p></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>charges, payment_allocations, payments, matches, players</code></td><td>Finance sheets</td><td><span class="pill read">read</span></td></tr><tr><td><code>expenses, income, cash_holders</code></td><td>Admin sheets</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/api/export/finance/route.ts</code></td><td>Route handler</td></tr><tr><td><code>src/modules/export/excel.ts</code></td><td><code>buildFinanceWorkbook</code></td></tr><tr><td><code>src/lib/filters.ts</code></td><td><code>parseFinanceFilter</code></td></tr><tr><td><code>src/app/(app)/finance/page.tsx</code></td><td>Public Export button</td></tr><tr><td><code>src/app/(app)/admin/page.tsx</code></td><td>Download full admin Excel</td></tr></tbody></table></div></section>
+<div class="pager"><a href="feature-google-sheets.html">← Google Sheet mirror</a><a href="feature-nightly-cron.html">Nightly cron →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>

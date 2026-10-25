@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Viking Warriors Team Portal · Viking Warriors docs</title>
+<link rel="stylesheet" href="assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="index.html" aria-current="page">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="pages/dashboard.html">Dashboard</a></li><li><a href="pages/players.html">Players</a></li><li><a href="pages/player-profile.html">Player profile</a></li><li><a href="pages/leaderboard.html">Leaderboard</a></li><li><a href="pages/matches.html">Matches</a></li><li><a href="pages/match-detail.html">Match detail</a></li><li><a href="pages/finance.html">Finance</a></li><li><a href="pages/reports.html">Reports</a></li><li><a href="pages/login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="pages/admin-overview.html">Revenue overview</a></li><li><a href="pages/admin-match-fees.html">Match fees</a></li><li><a href="pages/admin-payments.html">Payments</a></li><li><a href="pages/admin-collections.html">Collections</a></li><li><a href="pages/admin-expenses.html">Expenses &amp; income</a></li><li><a href="pages/admin-players.html">Manage players</a></li><li><a href="pages/admin-sync.html">Sync &amp; logs</a></li><li><a href="pages/admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="pages/feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="pages/feature-finance-ledger.html">Finance ledger</a></li><li><a href="pages/feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="pages/feature-excel-export.html">Excel export</a></li><li><a href="pages/feature-nightly-cron.html">Nightly cron</a></li><li><a href="pages/feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Project document</div>
+<h1>Viking Warriors Team Portal</h1>
+<p class="lede">Architecture, data model, finance rules, sync, security, setup and operations for the Viking Warriors cricket team site.</p>
+<div class="meta"><span>CricHeroes team <b>2921535</b></span><span>Match fee <b>₹50</b></span><span>Finance from <b>1 Oct 2026</b></span><span>Cash holder <b>Rahul</b></span><span>Nightly sync <b>23:30 IST</b></span></div>
+</header>
+
+<section>
+<h2>What this is</h2>
+<p>The Viking Warriors Team Portal is a Next.js web app for the Viking Warriors cricket team (CricHeroes team <b>2921535</b>). It has two parts:</p>
+<ul>
+<li><b>Public site</b> — anyone with the link: dashboard, player profiles with photos, weekly / monthly / season leaderboards, matches and scorecards, match-fee finance with filters and Excel export, and reports.</li>
+<li><b>Admin portal</b> — login required (<code>/admin</code>): match fees per match and per player (played / not played, paid / not paid, waived, custom amount), payments, tournament and monthly collections, expenses and income, cash holders (Rahul by default), player names / phones / photos, settings, admins, sync logs and the audit trail.</li>
+</ul>
+<p>Match and player data come from CricHeroes every night at 23:30 IST. Finance is calculated in the app's own database and mirrored month-wise into Google Sheets.</p>
+<div class="callout"><p><b>Finance rule:</b> ₹50 (setting <code>match_fee</code>) per squad member for every completed or abandoned <i>individual</i> match on or after <b>1 Oct 2026</b> (<code>finance_start_date</code>). Tournament matches, upcoming matches and guests are never charged automatically; tournament money is collected through <a href="pages/admin-collections.html">Collections</a>.</p></div>
+</section>
+
+<section>
+<h2>Stack and free tiers</h2>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>Choice</th><th>Notes</th></tr></thead><tbody><tr><td>Frontend</td><td>Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4, shadcn/ui (Radix), Recharts</td><td>Server-rendered on every request (<code>dynamic = "force-dynamic"</code> in <code>src/app/layout.tsx</code>; Cache Components off)</td></tr><tr><td>Backend</td><td>Next.js Server Components, Server Actions, Route Handlers</td><td>No separate API server</td></tr><tr><td>Database</td><td>Supabase Postgres + Drizzle ORM (<code>postgres</code> driver, <code>prepare: false</code> for the pooler)</td><td>Free: 500 MB. Pauses after 7 idle days — the nightly job keeps it active</td></tr><tr><td>Auth</td><td>Supabase Auth email magic link (+ optional Google) and the <code>admins</code> table</td><td>Free</td></tr><tr><td>Storage</td><td>Supabase Storage bucket <code>player-photos</code> (public)</td><td>Created automatically on first upload</td></tr><tr><td>Jobs</td><td>Vercel Cron (<code>vercel.json</code>)</td><td>Hobby plan: once a day, runs within the scheduled hour</td></tr><tr><td>Sheets</td><td>Google Sheets API v4 via <code>@googleapis/sheets</code> service account</td><td>Free within quota</td></tr><tr><td>Excel</td><td>ExcelJS</td><td>Server-side .xlsx</td></tr><tr><td>Hosting</td><td>Vercel Hobby, region <code>bom1</code> (Mumbai)</td><td>Close to Supabase ap-south-1</td></tr><tr><td>Tests</td><td>Vitest + PGlite (embedded Postgres)</td><td>No external services needed</td></tr></tbody></table></div>
+</section>
+
+<section>
+<h2>System architecture</h2>
+<div class="frame"><pre class="mermaid">
+flowchart LR
+  subgraph EXT["External"]
+    CH["CricHeroes public pages (team 2921535)"]
+    GS["Google Sheet (month-wise tabs)"]
+  end
+  subgraph VER["Vercel (region bom1)"]
+    CRON["Vercel Cron 18:00 UTC = 23:30 IST"]
+    NIGHT["/api/cron/nightly"]
+    PUB["Public pages (app)/*"]
+    ADM["Admin pages (app)/admin/*"]
+    ACT["Server actions via adminAction()"]
+    XL["/api/export/finance (Excel)"]
+    PX["proxy.ts (session refresh, /admin gate)"]
+  end
+  subgraph SB["Supabase (Mumbai)"]
+    DB[("Postgres + RLS")]
+    AUTH["Auth (magic link)"]
+    ST["Storage player-photos"]
+  end
+  CRON --> NIGHT
+  NIGHT -->|"runCricheroesSync()"| CH
+  NIGHT -->|"upsert"| DB
+  NIGHT -->|"syncSheet('cron')"| GS
+  PUB -->|"read"| DB
+  PX --> AUTH
+  ADM --> ACT -->|"transaction + audit"| DB
+  ACT -->|"after(): syncSheet('change')"| GS
+  ACT --> ST
+  XL -->|"read"| DB
+</pre></div>
+<p>Postgres is the single source of truth. CricHeroes feeds it; admins correct it; Google Sheets and Excel files are generated copies. Pages never call CricHeroes.</p>
+<h3>Request and data flow (admin edit)</h3>
+<div class="frame"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant B as Browser
+  participant P as proxy.ts
+  participant Pg as Admin page
+  participant A as Server action
+  participant D as Postgres
+  participant G as Google Sheet
+  B->>P: GET /admin/fees/[matchId]
+  P->>P: getClaims() — no session? redirect /login
+  P->>Pg: render
+  Pg->>Pg: requireAdmin() (admins table)
+  Pg->>D: getMatchDetail, getChargeRows, listCashHolders
+  B->>A: markPaid({chargeId, mode, holderId, paidOn})
+  A->>A: requireAdmin + zod
+  A->>D: transaction: markChargePaid, audit
+  A-->>B: {ok:true} + refresh()
+  A->>G: after(): syncSheet('change') (5 s debounce)
+</pre></div>
+</section>
+
+<section>
+<h2>Folder structure</h2>
+<div class="table-wrap"><table><thead><tr><th>Path</th><th>What lives there</th></tr></thead><tbody><tr><td><code>src/app/layout.tsx</code></td><td>Root layout: fonts, theme provider, toaster, <code>dynamic = "force-dynamic"</code></td></tr><tr><td><code>src/app/(app)/layout.tsx</code></td><td>App shell: sidebar (<code>AppSidebar</code>), header, mobile bottom nav (<code>MobileNav</code>)</td></tr><tr><td><code>src/app/(app)/*</code></td><td>Public pages: <code>page.tsx</code> (dashboard), players, players/[id], leaderboard, matches, matches/[id], finance, reports, login</td></tr><tr><td><code>src/app/(app)/admin/*</code></td><td>Admin pages; <code>layout.tsx</code> and every <code>page.tsx</code> call <code>requireAdmin()</code></td></tr><tr><td><code>src/app/api/cron/nightly/route.ts</code></td><td>Nightly job: CricHeroes sync + Google Sheet rebuild</td></tr><tr><td><code>src/app/api/export/finance/route.ts</code></td><td>Excel download (public or admin workbook)</td></tr><tr><td><code>src/app/auth/callback, auth/signout</code></td><td>Supabase login callback and sign out</td></tr><tr><td><code>src/proxy.ts</code></td><td>Next.js 16 proxy (formerly middleware): session refresh + /admin redirect for anonymous visitors</td></tr><tr><td><code>src/db/schema.ts, src/db/index.ts</code></td><td>Drizzle schema and connection (Supabase or <code>pglite:</code>)</td></tr><tr><td><code>src/modules/cricheroes</code></td><td><code>parser.ts</code> (page → data), <code>team-performance.ts</code> (our XI + figures), <code>client.ts</code> (HTTP)</td></tr><tr><td><code>src/modules/sync/sync.ts</code></td><td><code>runCricheroesSync()</code></td></tr><tr><td><code>src/modules/finance</code></td><td><code>rules.ts</code> (fee rule, status), <code>ledger.ts</code> (charges, payments, credit), <code>queries.ts</code>, <code>actions.ts</code></td></tr><tr><td><code>src/modules/stats</code></td><td><code>queries.ts</code> (player stats, team record, matches), <code>mvp.ts</code> (MVP points)</td></tr><tr><td><code>src/modules/players</code></td><td>Player queries and admin actions (edit, photo upload)</td></tr><tr><td><code>src/modules/settings</code></td><td>Settings store + admin actions (settings, admins, Sync now)</td></tr><tr><td><code>src/modules/sheets/sheets.ts</code></td><td>Google Sheet writer (<code>buildTabs</code>, <code>writeSheet</code>, <code>syncSheet</code>)</td></tr><tr><td><code>src/modules/export/excel.ts</code></td><td><code>buildFinanceWorkbook()</code></td></tr><tr><td><code>src/modules/admin/queries.ts</code></td><td>Admin lists: cash holders, admins, payments, collections, expenses, income, sync runs, audit</td></tr><tr><td><code>src/modules/audit/audit.ts</code></td><td><code>audit()</code> helper</td></tr><tr><td><code>src/lib</code></td><td><code>action.ts</code> (adminAction wrapper), <code>auth.ts</code>, <code>dates.ts</code> (IST), <code>format.ts</code>, <code>filters.ts</code>, <code>supabase/server.ts</code></td></tr><tr><td><code>src/components</code></td><td><code>shared.tsx</code>, <code>url-select.tsx</code>, <code>layout/*</code>, <code>public/*</code>, <code>admin/finance/*</code>, <code>admin/ops/*</code>, shadcn <code>ui/*</code></td></tr><tr><td><code>drizzle/</code></td><td>SQL migrations: <code>0000_init.sql</code>, <code>0001_security_and_seed.sql</code> (RLS + seed admin and Rahul)</td></tr><tr><td><code>scripts/</code></td><td><code>migrate.ts</code> (<code>npm run db:migrate</code>), <code>sync.ts</code> (<code>npm run sync</code>)</td></tr><tr><td><code>tests/</code></td><td>Parser, sync + ledger and sheet tests; <code>fixtures/</code> holds saved CricHeroes pages</td></tr><tr><td><code>.claude/skills/</code></td><td>Project skills: cricheroes-sync, add-feature-module, db-migration</td></tr></tbody></table></div>
+</section>
+
+<section>
+<h2>Data model</h2>
+<p>All money columns are whole rupees (integer). Timestamps are UTC; calendar grouping (months, weeks) uses Asia/Kolkata via <code>src/lib/dates.ts</code>.</p>
+<div class="frame"><pre class="mermaid">
+erDiagram
+  PLAYERS ||--o{ MATCH_PLAYERS : "plays in"
+  MATCHES ||--o{ MATCH_PLAYERS : "has XI"
+  MATCHES ||--o{ PLAYER_MATCH_STATS : "produces"
+  PLAYERS ||--o{ PLAYER_MATCH_STATS : "earns"
+  PLAYERS ||--o{ CHARGES : "owes"
+  MATCHES ||--o{ CHARGES : "match fee"
+  COLLECTIONS ||--o{ CHARGES : "collection share"
+  PLAYERS ||--o{ PAYMENTS : "pays"
+  PAYMENTS ||--o{ PAYMENT_ALLOCATIONS : "split into"
+  CHARGES ||--o{ PAYMENT_ALLOCATIONS : "settled by"
+  CASH_HOLDERS ||--o{ PAYMENTS : "receives"
+  CASH_HOLDERS ||--o{ EXPENSES : "pays out"
+  CASH_HOLDERS ||--o{ INCOME : "receives"
+  PLAYERS ||--o{ NOTIFICATION_OUTBOX : "reminded"
+  PLAYERS {
+    uuid id PK
+    bigint cricheroes_player_id UK
+    text name
+    text phone
+    bool is_member
+    bool name_locked
+  }
+  MATCHES {
+    uuid id PK
+    bigint cricheroes_match_id UK
+    timestamptz start_time
+    text status
+    text kind
+    bool chargeable
+    int fee_per_player
+    bool finance_locked
+  }
+  MATCH_PLAYERS {
+    uuid match_id PK
+    uuid player_id PK
+    bool played
+    bool admin_locked
+  }
+  PLAYER_MATCH_STATS {
+    uuid match_id PK
+    uuid player_id PK
+    int runs
+    int wickets
+    int catches
+  }
+  CHARGES {
+    uuid id PK
+    text kind
+    date charge_date
+    int amount
+    bool waived
+    bool admin_locked
+  }
+  COLLECTIONS {
+    uuid id PK
+    text kind
+    text title
+    int default_amount
+  }
+  PAYMENTS {
+    uuid id PK
+    int amount
+    date paid_on
+    text mode
+    text source
+  }
+  PAYMENT_ALLOCATIONS {
+    uuid payment_id PK
+    uuid charge_id PK
+    int amount
+  }
+  CASH_HOLDERS {
+    uuid id PK
+    text name
+    bool is_default
+  }
+  EXPENSES {
+    uuid id PK
+    date spent_on
+    text category
+    int amount
+  }
+  INCOME {
+    uuid id PK
+    date received_on
+    text category
+    int amount
+  }
+  NOTIFICATION_OUTBOX {
+    uuid id PK
+    text message
+    text status
+  }
+</pre></div>
+<h3 id="t-settings"><code>settings</code></h3><p>Admin-editable settings as key → JSON value. Defaults live in SETTING_DEFAULTS (src/modules/settings/settings.ts).</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>key</code></td><td>text PK</td><td>Setting name: team_id, team_name, match_fee, finance_start_date, sync_start_date, google_sheet_url, public_show_balances, upi_id</td></tr><tr><td><code>value</code></td><td>jsonb</td><td>The value (number, string or boolean)</td></tr><tr><td><code>updated_at</code></td><td>timestamptz</td><td>Last change</td></tr><tr><td><code>updated_by</code></td><td>text</td><td>Admin email that saved it</td></tr></tbody></table></div><h3 id="t-admins"><code>admins</code></h3><p>Emails allowed into the admin portal. Seeded with arunsha0007@gmail.com.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>email</code></td><td>text PK</td><td>Lower-case email; must match the Supabase Auth login email</td></tr><tr><td><code>added_by</code></td><td>text</td><td>Admin who added it (seed for the first one)</td></tr><tr><td><code>created_at</code></td><td>timestamptz</td><td>When added</td></tr></tbody></table></div><h3 id="t-players"><code>players</code></h3><p>Everyone who has played for the team. Members come from the CricHeroes squad; guests from scorecards or admin.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td>uuid PK</td><td>Internal id used in URLs (/players/[id])</td></tr><tr><td><code>cricheroes_player_id</code></td><td>bigint unique</td><td>CricHeroes player id; null for hand-added players</td></tr><tr><td><code>ch_name</code></td><td>text</td><td>Name as CricHeroes reports it (refreshed every sync)</td></tr><tr><td><code>ch_photo_url</code></td><td>text</td><td>CricHeroes photo (refreshed every sync)</td></tr><tr><td><code>name</code></td><td>text</td><td>Display name; admin rename wins over CricHeroes</td></tr><tr><td><code>photo_url</code></td><td>text</td><td>Custom photo uploaded by an admin (Supabase Storage); overrides ch_photo_url</td></tr><tr><td><code>phone</code></td><td>text</td><td>Mobile number — admin only, never shown publicly (for WhatsApp reminders later)</td></tr><tr><td><code>batting_style / bowling_style</code></td><td>text</td><td>CricHeroes batter / bowler category</td></tr><tr><td><code>is_member</code></td><td>boolean</td><td>true = squad member, charged match fees; false = guest, never charged</td></tr><tr><td><code>is_active</code></td><td>boolean</td><td>Inactive players are hidden from default checklists</td></tr><tr><td><code>is_captain</code></td><td>boolean</td><td>From CricHeroes</td></tr><tr><td><code>name_locked</code></td><td>boolean</td><td>Set when an admin renames; the sync stops overwriting name</td></tr><tr><td><code>notes</code></td><td>text</td><td>Admin notes</td></tr><tr><td><code>created_at / updated_at</code></td><td>timestamptz</td><td></td></tr></tbody></table></div><h3 id="t-matches"><code>matches</code></h3><p>One row per CricHeroes match since sync_start_date, plus finance settings per match.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td>uuid PK</td><td>Internal id (/matches/[id], /admin/fees/[matchId])</td></tr><tr><td><code>cricheroes_match_id</code></td><td>bigint unique</td><td>Sync key — makes the sync idempotent</td></tr><tr><td><code>start_time</code></td><td>timestamptz</td><td>UTC; grouped by IST date/month</td></tr><tr><td><code>status</code></td><td>text</td><td>upcoming | live | past (CricHeroes)</td></tr><tr><td><code>result_type</code></td><td>text</td><td>resulted | abandoned | '' (CricHeroes match_result)</td></tr><tr><td><code>outcome</code></td><td>text</td><td>won | lost | tied | abandoned | no_result | null (matchOutcome())</td></tr><tr><td><code>result_text</code></td><td>text</td><td>e.g. "Viking Warriors won by 7 wickets"</td></tr><tr><td><code>kind</code></td><td>text</td><td>individual | tournament (tournament if CricHeroes gives a tournament name)</td></tr><tr><td><code>tournament_name</code></td><td>text</td><td>CricHeroes tournament name</td></tr><tr><td><code>opponent_name / opponent_logo</code></td><td>text</td><td>The other team</td></tr><tr><td><code>ground / city / overs / ball_type</code></td><td>text / int</td><td>Match info</td></tr><tr><td><code>our_score / opponent_score</code></td><td>text</td><td>e.g. 126/3</td></tr><tr><td><code>pom_cricheroes_player_id</code></td><td>bigint</td><td>Player of the match (CricHeroes id)</td></tr><tr><td><code>scorecard_synced_at</code></td><td>timestamptz</td><td>When our XI and figures were last saved</td></tr><tr><td><code>chargeable</code></td><td>boolean</td><td>Whether this match creates match-fee charges</td></tr><tr><td><code>fee_per_player</code></td><td>integer ₹</td><td>Fee for this match (default 50, fixed when the match finishes)</td></tr><tr><td><code>finance_locked</code></td><td>boolean</td><td>Set when an admin saves fee settings; the sync stops changing kind / chargeable / fee</td></tr><tr><td><code>notes</code></td><td>text</td><td>Admin notes</td></tr><tr><td><code>created_at / updated_at</code></td><td>timestamptz</td><td></td></tr></tbody></table></div><h3 id="t-match_players"><code>match_players</code></h3><p>Who played in each match (our XI).</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>match_id, player_id</code></td><td>uuid PK</td><td>Composite key</td></tr><tr><td><code>played</code></td><td>boolean</td><td>false = admin marked "did not play" (kept so the sync does not re-add them)</td></tr><tr><td><code>source</code></td><td>text</td><td>cricheroes | admin</td></tr><tr><td><code>admin_locked</code></td><td>boolean</td><td>Admin decided this row; the sync never removes or changes it</td></tr><tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr></tbody></table></div><h3 id="t-player_match_stats"><code>player_match_stats</code></h3><p>Per-player figures for one match, from the scorecard.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>match_id, player_id</code></td><td>uuid PK</td><td>Composite key</td></tr><tr><td><code>batted, runs, balls_faced, fours, sixes, is_out, dismissal</code></td><td>bool / int / text</td><td>Batting</td></tr><tr><td><code>balls_bowled, maidens, runs_conceded, wickets, dot_balls, wides, no_balls</code></td><td>int</td><td>Bowling (balls, not overs)</td></tr><tr><td><code>catches, stumpings, run_outs</code></td><td>int</td><td>Fielding, parsed from dismissal texts</td></tr></tbody></table></div><h3 id="t-cash_holders"><code>cash_holders</code></h3><p>People who physically hold team money. Seeded with Rahul (default).</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td>uuid PK</td><td></td></tr><tr><td><code>name</code></td><td>text unique</td><td>e.g. Rahul</td></tr><tr><td><code>is_default</code></td><td>boolean</td><td>Pre-selected as "Received by" / "Paid from"</td></tr><tr><td><code>is_active</code></td><td>boolean</td><td>Inactive holders are hidden from pickers</td></tr><tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr></tbody></table></div><h3 id="t-collections"><code>collections</code></h3><p>One-off collections: tournament share, monthly fee, special match split…</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td>uuid PK</td><td></td></tr><tr><td><code>kind</code></td><td>text</td><td>tournament | monthly | special | other</td></tr><tr><td><code>title / description</code></td><td>text</td><td>Shown on charges and in the sheet</td></tr><tr><td><code>due_on</code></td><td>date</td><td>Charge date of every charge in the collection</td></tr><tr><td><code>default_amount</code></td><td>integer ₹</td><td>Amount per player when created</td></tr><tr><td><code>created_by / created_at</code></td><td></td><td>Audit</td></tr></tbody></table></div><h3 id="t-charges"><code>charges</code></h3><p>Everything a player owes.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td>uuid PK</td><td></td></tr><tr><td><code>player_id</code></td><td>uuid FK</td><td>Who owes</td></tr><tr><td><code>kind</code></td><td>text</td><td>match_fee | collection | adjustment</td></tr><tr><td><code>match_id</code></td><td>uuid FK</td><td>For match_fee (unique per match + player)</td></tr><tr><td><code>collection_id</code></td><td>uuid FK</td><td>For collection (unique per collection + player)</td></tr><tr><td><code>charge_date</code></td><td>date</td><td>IST date used by month filters</td></tr><tr><td><code>description</code></td><td>text</td><td>e.g. "Match fee vs Jaguar CC"</td></tr><tr><td><code>amount</code></td><td>integer ₹</td><td>Amount owed</td></tr><tr><td><code>waived</code></td><td>boolean</td><td>Waived charges are not owed</td></tr><tr><td><code>admin_locked</code></td><td>boolean</td><td>Amount / waived set by an admin; the sync never changes or deletes it</td></tr><tr><td><code>created_at / updated_at</code></td><td>timestamptz</td><td></td></tr></tbody></table></div><h3 id="t-payments"><code>payments</code></h3><p>Money received from a player.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td>uuid PK</td><td></td></tr><tr><td><code>player_id</code></td><td>uuid FK</td><td>Who paid</td></tr><tr><td><code>amount</code></td><td>integer ₹</td><td></td></tr><tr><td><code>paid_on</code></td><td>date</td><td>IST date</td></tr><tr><td><code>mode</code></td><td>text</td><td>cash | upi | bank | other</td></tr><tr><td><code>holder_id</code></td><td>uuid FK</td><td>Cash holder who received it</td></tr><tr><td><code>reference / note</code></td><td>text</td><td>UPI reference, remarks</td></tr><tr><td><code>source</code></td><td>text</td><td>quick = created by "Mark paid" on one charge; manual = recorded lump sum</td></tr><tr><td><code>created_by / created_at</code></td><td></td><td>Audit</td></tr></tbody></table></div><h3 id="t-payment_allocations"><code>payment_allocations</code></h3><p>Which charges each payment settles.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>payment_id, charge_id</code></td><td>uuid PK</td><td>Composite key</td></tr><tr><td><code>amount</code></td><td>integer ₹</td><td>Part of the payment applied to that charge</td></tr></tbody></table></div><h3 id="t-expenses"><code>expenses</code></h3><p>Money spent by the team.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td>uuid PK</td><td></td></tr><tr><td><code>spent_on</code></td><td>date</td><td></td></tr><tr><td><code>category</code></td><td>text</td><td>balls | ground | equipment | tournament_fee | food | jersey | other</td></tr><tr><td><code>description / amount</code></td><td>text / integer ₹</td><td></td></tr><tr><td><code>holder_id</code></td><td>uuid FK</td><td>Cash holder the money came from</td></tr><tr><td><code>paid_by</code></td><td>text</td><td>Free text, e.g. "Paid by Arun"</td></tr><tr><td><code>mode</code></td><td>text</td><td>cash | upi | bank | other</td></tr><tr><td><code>receipt_url</code></td><td>text</td><td>Reserved for receipt uploads</td></tr><tr><td><code>created_by / created_at</code></td><td></td><td>Audit</td></tr></tbody></table></div><h3 id="t-income"><code>income</code></h3><p>Money received that is not a player payment.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td>uuid PK</td><td></td></tr><tr><td><code>received_on</code></td><td>date</td><td></td></tr><tr><td><code>category</code></td><td>text</td><td>sponsorship | ball_sale | prize_money | other</td></tr><tr><td><code>description / amount</code></td><td>text / integer ₹</td><td></td></tr><tr><td><code>holder_id</code></td><td>uuid FK</td><td>Cash holder who received it</td></tr><tr><td><code>mode</code></td><td>text</td><td></td></tr><tr><td><code>created_by / created_at</code></td><td></td><td>Audit</td></tr></tbody></table></div><h3 id="t-audit_log"><code>audit_log</code></h3><p>Every admin change: who, when, before, after.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td>serial PK</td><td></td></tr><tr><td><code>actor</code></td><td>text</td><td>Admin email</td></tr><tr><td><code>action</code></td><td>text</td><td>e.g. charge.mark_paid, match.finance.update, settings.update</td></tr><tr><td><code>entity / entity_id</code></td><td>text</td><td>What was changed</td></tr><tr><td><code>before / after</code></td><td>jsonb</td><td>Values before and after</td></tr><tr><td><code>at</code></td><td>timestamptz</td><td>When</td></tr></tbody></table></div><h3 id="t-sync_runs"><code>sync_runs</code></h3><p>Log of every CricHeroes and Google Sheet sync.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td>serial PK</td><td></td></tr><tr><td><code>kind</code></td><td>text</td><td>cricheroes | sheets</td></tr><tr><td><code>trigger</code></td><td>text</td><td>cron | manual | change</td></tr><tr><td><code>started_at / finished_at</code></td><td>timestamptz</td><td></td></tr><tr><td><code>status</code></td><td>text</td><td>queued | running | success | failed | skipped</td></tr><tr><td><code>summary</code></td><td>jsonb</td><td>Counts and warnings</td></tr><tr><td><code>error</code></td><td>text</td><td>Failure reason</td></tr></tbody></table></div><h3 id="t-notification_outbox"><code>notification_outbox</code></h3><p>Queue for WhatsApp reminders (phase 2). Table exists; nothing writes or sends yet.</p><div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>id</code></td><td>uuid PK</td><td></td></tr><tr><td><code>player_id</code></td><td>uuid FK</td><td></td></tr><tr><td><code>channel</code></td><td>text</td><td>whatsapp</td></tr><tr><td><code>message</code></td><td>text</td><td></td></tr><tr><td><code>status</code></td><td>text</td><td>pending | sent | failed | cancelled</td></tr><tr><td><code>error / created_at / sent_at</code></td><td></td><td></td></tr></tbody></table></div>
+</section>
+
+<section>
+<h2>Fee rule and ledger</h2>
+<p><code>isChargeableByDefault()</code> in <code>src/modules/finance/rules.ts</code>: a match is chargeable when <code>status = 'past'</code> (completed or abandoned), <code>kind = 'individual'</code>, and its IST date is on or after <code>finance_start_date</code>. <code>reconcileMatchCharges()</code> in <code>ledger.ts</code> then makes the match's <code>match_fee</code> charges equal "played members × fee_per_player":</p>
+<ul>
+<li>played member without a charge → charge created (amount = <code>fee_per_player</code>);</li>
+<li>existing charge not admin-locked → amount, date and description refreshed;</li>
+<li>charge for someone who no longer should pay → deleted, unless it is admin-locked or already has money allocated (then it is kept for the admin to waive).</li>
+</ul>
+<p>Balance per player = Σ non-waived charges − Σ payments. Payments settle charges through <code>payment_allocations</code>, oldest charge first (<code>applyCredit()</code>). Money not yet allocated is credit and is applied automatically to the next charge.</p>
+<h3>Worked example</h3>
+<div class="table-wrap"><table><thead><tr><th>Step</th><th>What happens</th><th>Gopi's balance</th></tr></thead><tbody><tr><td>1</td><td>Gopi plays 4 Oct and 11 Oct individual matches → two ₹50 <code>match_fee</code> charges</td><td>₹100 due</td></tr><tr><td>2</td><td>Admin records a ₹150 UPI payment (received by Rahul) → ₹50 to 4 Oct, ₹50 to 11 Oct, ₹50 left as credit</td><td>₹50 credit</td></tr><tr><td>3</td><td>Gopi plays 18 Oct → new ₹50 charge; <code>applyCredit()</code> settles it from the credit</td><td>₹0</td></tr><tr><td>4</td><td>Admin creates a ₹400 tournament collection including Gopi</td><td>₹400 due</td></tr><tr><td>5</td><td>Admin waives the 18 Oct fee → its ₹50 allocation is freed and moved onto the tournament charge</td><td>₹350 due</td></tr></tbody></table></div>
+<p>Statuses (<code>chargeStatus()</code>): <b>paid</b> (allocated ≥ amount), <b>partial</b>, <b>unpaid</b>, <b>waived</b>.</p>
+</section>
+
+<section>
+<h2>Admin locks: how the sync respects admin edits</h2>
+<div class="table-wrap"><table><thead><tr><th>Lock column</th><th>Set when</th><th>Sync behaviour</th></tr></thead><tbody><tr><td><code>matches.finance_locked</code></td><td>Admin saves fee settings for a match (<code>updateMatchFinance</code>)</td><td>Sync no longer changes <code>kind</code>, <code>chargeable</code>, <code>fee_per_player</code></td></tr><tr><td><code>match_players.admin_locked</code></td><td>Admin toggles Played or adds a player (<code>setMatchPlayer</code>)</td><td>Sync never removes or changes that row</td></tr><tr><td><code>charges.admin_locked</code></td><td>Admin changes amount or waives (<code>setChargeAmount</code>, <code>setChargeWaived</code>); all collection and adjustment charges</td><td>Never updated or deleted by <code>reconcileMatchCharges()</code></td></tr><tr><td><code>players.name_locked</code></td><td>Admin renames a player (<code>updatePlayer</code>)</td><td>Sync keeps refreshing <code>ch_name</code> but not <code>name</code></td></tr><tr><td><code>players.photo_url</code></td><td>Admin uploads a photo</td><td>Sync only updates <code>ch_photo_url</code>; the custom photo wins</td></tr></tbody></table></div>
+<p>Also: <code>fee_per_player</code> is only taken from settings while a match is new or not yet finished, so changing the default fee never rewrites past matches.</p>
+</section>
+
+<section>
+<h2>CricHeroes sync</h2>
+<p>See <a href="pages/feature-cricheroes-sync.html">CricHeroes sync</a> for detail. It reads three public pages (team matches, team members, each scorecard) and parses the embedded React Server Components payload. It does not use CricHeroes' private API key. Re-running is safe: matches are keyed by <code>cricheroes_match_id</code>, charges are unique per match + player, stats are upserted. Scorecards are re-read for 3 days after a match in case the scorer corrects them. Problems with single pages are recorded as warnings in <code>sync_runs.summary</code>; a failure to read the match list fails the run without touching data.</p>
+</section>
+
+<section>
+<h2>Google Sheet mirror</h2>
+<p>One-way, app → sheet (<a href="pages/feature-google-sheets.html">details</a>). Tabs: <b>Summary</b>, one tab per month since 1 Oct 2026 (e.g. <b>Oct 2026</b>, laid out like the old "Normal match amount split": players down, match dates across), <b>Collections</b>, <b>Payments</b>, <b>Expenses</b>, <b>Income</b>. After every admin change the sheet is rewritten (5-second debounce so a burst of clicks causes one write) and it is rebuilt nightly. Other tabs in the sheet are left alone. If the sheet is not shared with the service account, the run fails with "Permission denied. Share the Google Sheet with … as Editor."</p>
+</section>
+
+<section>
+<h2>Excel export</h2>
+<p><code>GET /api/export/finance</code> with the same filters as the Finance page (<a href="pages/feature-excel-export.html">details</a>). Public workbook: <i>By player</i>, <i>By match</i>, <i>Charges</i> (player sheets omitted when <code>public_show_balances</code> is off). Admin workbook (<code>?scope=admin</code>, admin session required) adds <i>Payments</i>, <i>Expenses</i>, <i>Income</i>.</p>
+</section>
+
+<section>
+<h2>Auth and security</h2>
+<ul>
+<li><b>Login:</b> Supabase Auth email magic link (<code>/login</code>), only sent to emails in the <code>admins</code> table. Optional Google sign-in. Session cookies via <code>@supabase/ssr</code>.</li>
+<li><b>Authorization:</b> <code>requireAdmin()</code> (<code>src/lib/auth.ts</code>) runs in the admin layout, at the top of <b>every admin page</b> (layouts and pages render in parallel, so the layout alone is not enough) and inside every admin server action through <code>adminAction()</code>. <code>proxy.ts</code> also redirects anonymous visitors from <code>/admin</code> to <code>/login</code> before rendering.</li>
+<li><b>Database:</b> row level security is enabled on every table with no policies, so Supabase's public REST API cannot read or write anything. The server connects as the database owner.</li>
+<li><b>Secrets:</b> <code>SUPABASE_SECRET_KEY</code>, <code>GOOGLE_PRIVATE_KEY</code>, <code>CRON_SECRET</code> and the database URLs are server-only environment variables; the Settings page shows whether they are set, never their values.</li>
+<li><b>Public vs admin-only:</b> public — stats, matches, match fees and balances (switchable with <code>public_show_balances</code>), team-level fee charts. Admin-only — phone numbers, payments list, expenses, income, cash holders, fund balance, audit log, sync logs, admin Excel.</li>
+<li><b>Audit:</b> every admin mutation writes <code>audit_log</code> with before/after values.</li>
+</ul>
+<p>Details: <a href="pages/feature-auth-security.html">Auth &amp; security</a>.</p>
+</section>
+
+<section>
+<h2>Nightly job</h2>
+<p><code>vercel.json</code> schedules <code>/api/cron/nightly</code> at <code>0 18 * * *</code> (18:00 UTC = 23:30 IST). On the Hobby plan Vercel may run it any time within that hour. The route checks <code>Authorization: Bearer $CRON_SECRET</code>, runs <code>runCricheroesSync("cron")</code>, then <code>syncSheet("cron")</code> even if CricHeroes failed. Admins can run the same thing from <a href="pages/admin-sync.html">Sync &amp; logs</a>.</p>
+</section>
+
+<section>
+<h2>Environment variables</h2>
+<div class="table-wrap"><table><thead><tr><th>Variable</th><th>Purpose</th><th>Where to get it</th></tr></thead><tbody><tr><td><code>DATABASE_URL</code></td><td>Postgres connection used by the app at runtime. Supabase transaction pooler (port 6543), or <code>pglite:./.pglite</code> locally.</td><td>Supabase → Project Settings → Database → Connection string</td></tr><tr><td><code>DIRECT_DATABASE_URL</code></td><td>Direct/session connection (port 5432) used only by <code>npm run db:migrate</code> and drizzle-kit.</td><td>Same page, session mode</td></tr><tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code></td><td>Supabase project URL for Auth and Storage.</td><td>Supabase → Project Settings → API</td></tr><tr><td><code>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code></td><td>Publishable (anon) key for the login session. Safe in the browser because RLS closes every table.</td><td>Supabase → API keys</td></tr><tr><td><code>SUPABASE_SECRET_KEY</code></td><td>Service-role key, used only server-side to upload player photos to Storage. Bypasses all security — never expose.</td><td>Supabase → API keys (secret)</td></tr><tr><td><code>NEXT_PUBLIC_SITE_URL</code></td><td>Public site URL used in magic-link emails.</td><td>Your Vercel domain</td></tr><tr><td><code>CRON_SECRET</code></td><td>Protects <code>/api/cron/nightly</code>; Vercel Cron sends it as <code>Authorization: Bearer</code>.</td><td>Generate: <code>openssl rand -hex 32</code></td></tr><tr><td><code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code></td><td>Service account that writes the Google Sheet. Share the sheet with it as Editor.</td><td>Google Cloud → IAM → Service accounts</td></tr><tr><td><code>GOOGLE_PRIVATE_KEY</code></td><td>Private key from the service account JSON, keeping the <code>\n</code> sequences.</td><td>Service account → Keys → JSON</td></tr><tr><td><code>NEXT_PUBLIC_GOOGLE_AUTH_ENABLED</code></td><td>Optional. <code>true</code> shows "Continue with Google" on /login (enable the Google provider in Supabase first).</td><td>—</td></tr><tr><td><code>DEV_ADMIN_EMAIL</code></td><td>Local development only: act as this admin without logging in. Ignored when NODE_ENV is not development.</td><td>—</td></tr></tbody></table></div>
+<p>Copy <code>.env.example</code> to <code>.env.local</code> (git-ignored) and add the same values in Vercel → Settings → Environment Variables.</p>
+</section>
+
+<section>
+<h2>Deployment</h2>
+<ol class="steps">
+<li><div><b>Supabase:</b> create a project in region Mumbai (ap-south-1). Copy the pooler (6543) and session (5432) connection strings, project URL, publishable key and secret key. In Auth → URL configuration set the Site URL to the Vercel URL and add <code>https://&lt;domain&gt;/auth/callback</code> to redirect URLs.</div></li>
+<li><div><b>Migrate:</b> with the env set locally, run <code>npm run db:migrate</code>. This creates all tables, enables RLS, and seeds admin <code>arunsha0007@gmail.com</code> and cash holder <code>Rahul</code>.</div></li>
+<li><div><b>Google Cloud:</b> create a project, enable the Google Sheets API, create a service account, download a JSON key. Put <code>client_email</code> and <code>private_key</code> in env. Open the team sheet → Share → add the service account email as <b>Editor</b>.</div></li>
+<li><div><b>Vercel:</b> import the GitHub repo, add every env variable, deploy. <code>vercel.json</code> sets the region and the cron.</div></li>
+<li><div><b>First sync:</b> log in at <code>/login</code>, open Admin → Sync &amp; logs → <i>Sync CricHeroes now</i>, then <i>Rebuild Google Sheet now</i>.</div></li>
+</ol>
+</section>
+
+<section>
+<h2>Local development</h2>
+<pre class="code"><code>npm install
+cp .env.example .env.local
+# .env.local:
+#   DATABASE_URL="pglite:./.pglite"          embedded Postgres, no Supabase needed
+#   DEV_ADMIN_EMAIL="arunsha0007@gmail.com"  act as admin without logging in (dev only)
+npm run db:migrate
+npm run sync     # pulls real data from CricHeroes
+npm run dev</code></pre>
+</section>
+
+<section>
+<h2>Testing</h2>
+<div class="table-wrap"><table><thead><tr><th>Test file</th><th>What it covers</th></tr></thead><tbody><tr><td><code>tests/cricheroes-parser.test.ts</code></td><td>Parser against saved CricHeroes pages: 12 matches, 34 members, full XI with batting/bowling/fielding, abandoned scorecard, helper functions</td></tr><tr><td><code>tests/sync-and-ledger.test.ts</code></td><td>Full sync into in-memory Postgres: October matches charged ₹50 to members only, no double charge on re-run, admin locks respected, not-played removes charge; ledger: lump payment, credit, mark paid/unpaid, waive, custom amount</td></tr><tr><td><code>tests/sheets.test.ts</code></td><td>Google Sheet tab builder: Summary, month tab layout (6 October matches), totals row</td></tr></tbody></table></div>
+<p>Run <code>npm test</code>, <code>npm run typecheck</code>, <code>npm run lint</code>.</p>
+</section>
+
+<section>
+<h2>Known challenges and limits</h2>
+<ul>
+<li><b>No official CricHeroes API.</b> The sync reads public pages; a redesign of cricheroes.com can break it. Only <code>src/modules/cricheroes/parser.ts</code> should need changing (see the <code>cricheroes-sync</code> skill). Their terms may not allow automated reading, and they could block cloud IPs.</li>
+<li><b>Latest 12 matches only.</b> The public matches page lists the newest 12. A nightly run never misses matches, but if the sync fails for weeks while more than 12 matches are played, older ones must be added by hand.</li>
+<li><b>Matches without a scorecard</b> have no XI; the sync logs a warning and the admin adds players on the match-fee screen.</li>
+<li><b>Name matching for fielding.</b> Catches / stumpings / run outs are matched by name from dismissal text; unusual spellings can miss a credit.</li>
+<li><b>Magic link must be opened in the same browser</b> that requested it (PKCE). Supabase's built-in email sender is limited to a few emails per hour.</li>
+<li><b>Free-tier limits:</b> Supabase pauses after 7 idle days (nightly job prevents it); Vercel Hobby cron runs within the hour; Google Sheets API quota (the writer uses about 4–5 calls per rewrite).</li>
+<li><b>Manual sheet edits are overwritten</b> by the next sync — the app is the source of truth.</li>
+</ul>
+</section>
+
+<section>
+<h2>Roadmap (phase 2)</h2>
+<ul>
+<li><b>WhatsApp dues reminders:</b> the <code>notification_outbox</code> table and <code>players.phone</code> are in place; a sender (click-to-chat links first, then WhatsApp Cloud API) will be added.</li>
+<li><b>AI features and chatbot:</b> to be started only when the team owner says so.</li>
+</ul>
+</section>
+
+<section>
+<h2>Page and feature docs</h2>
+<h3>Public pages</h3><div class="cards"><a class="card" href="pages/dashboard.html"><b>Dashboard</b><span>pages/dashboard.html</span></a><a class="card" href="pages/players.html"><b>Players</b><span>pages/players.html</span></a><a class="card" href="pages/player-profile.html"><b>Player profile</b><span>pages/player-profile.html</span></a><a class="card" href="pages/leaderboard.html"><b>Leaderboard</b><span>pages/leaderboard.html</span></a><a class="card" href="pages/matches.html"><b>Matches</b><span>pages/matches.html</span></a><a class="card" href="pages/match-detail.html"><b>Match detail</b><span>pages/match-detail.html</span></a><a class="card" href="pages/finance.html"><b>Finance</b><span>pages/finance.html</span></a><a class="card" href="pages/reports.html"><b>Reports</b><span>pages/reports.html</span></a><a class="card" href="pages/login.html"><b>Admin login</b><span>pages/login.html</span></a></div><h3>Admin pages</h3><div class="cards"><a class="card" href="pages/admin-overview.html"><b>Revenue overview</b><span>pages/admin-overview.html</span></a><a class="card" href="pages/admin-match-fees.html"><b>Match fees</b><span>pages/admin-match-fees.html</span></a><a class="card" href="pages/admin-payments.html"><b>Payments</b><span>pages/admin-payments.html</span></a><a class="card" href="pages/admin-collections.html"><b>Collections</b><span>pages/admin-collections.html</span></a><a class="card" href="pages/admin-expenses.html"><b>Expenses &amp; income</b><span>pages/admin-expenses.html</span></a><a class="card" href="pages/admin-players.html"><b>Manage players</b><span>pages/admin-players.html</span></a><a class="card" href="pages/admin-sync.html"><b>Sync &amp; logs</b><span>pages/admin-sync.html</span></a><a class="card" href="pages/admin-settings.html"><b>Settings</b><span>pages/admin-settings.html</span></a></div><h3>Features</h3><div class="cards"><a class="card" href="pages/feature-cricheroes-sync.html"><b>CricHeroes sync</b><span>pages/feature-cricheroes-sync.html</span></a><a class="card" href="pages/feature-finance-ledger.html"><b>Finance ledger</b><span>pages/feature-finance-ledger.html</span></a><a class="card" href="pages/feature-google-sheets.html"><b>Google Sheet mirror</b><span>pages/feature-google-sheets.html</span></a><a class="card" href="pages/feature-excel-export.html"><b>Excel export</b><span>pages/feature-excel-export.html</span></a><a class="card" href="pages/feature-nightly-cron.html"><b>Nightly cron</b><span>pages/feature-nightly-cron.html</span></a><a class="card" href="pages/feature-auth-security.html"><b>Auth &amp; security</b><span>pages/feature-auth-security.html</span></a></div>
+</section>
+
+
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, securityLevel: "strict", theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
+</script>
+</body>
+</html>

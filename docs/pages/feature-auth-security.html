@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Auth & security · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html" aria-current="page">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Feature</div>
+<h1>Auth & security</h1>
+<p class="lede">Who can see and change what, and the layers that enforce it.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill read">feature</span></p></section>
+<section><h2>What is shown</h2><div class="table-wrap"><table><thead><tr><th>Layer</th><th>Where</th><th>What it does</th></tr></thead><tbody><tr><td>Proxy</td><td><code>src/proxy.ts</code></td><td>On /admin, /login, /auth: refreshes the Supabase session; anonymous visitors to /admin are redirected to /login before any rendering</td></tr><tr><td>Admin layout + every admin page</td><td><code>src/app/(app)/admin/**</code></td><td><code>await requireAdmin()</code> first. Layouts and pages render in parallel in the App Router, so each page checks on its own</td></tr><tr><td>Server actions</td><td><code>src/lib/action.ts</code></td><td><code>adminAction()</code> calls <code>requireAdmin()</code>, validates input with zod, uses one transaction and writes <code>audit_log</code></td></tr><tr><td>Admin list</td><td><code>admins</code></td><td>Only listed emails are admins; managed in Settings</td></tr><tr><td>Row level security</td><td><code>drizzle/0001_security_and_seed.sql</code></td><td>RLS enabled on all 16 tables with no policies → Supabase REST (anon / authenticated) cannot read or write</td></tr><tr><td>Secrets</td><td>Vercel env</td><td>Service-role key, Google private key, cron secret and DB URLs are server-only; Settings shows only whether they are set</td></tr><tr><td>Cron</td><td><code>/api/cron/nightly</code></td><td>Bearer <code>CRON_SECRET</code></td></tr><tr><td>Admin export</td><td><code>/api/export/finance?scope=admin</code></td><td>401 without an admin session</td></tr></tbody></table></div><h3>Public vs admin-only data</h3><div class="table-wrap"><table><thead><tr><th>Public</th><th>Admin only</th></tr></thead><tbody><tr><td>Stats, leaderboards, matches, scorecards</td><td>Phone numbers</td></tr><tr><td>Match fees, per-player dues and balances (switch: <code>public_show_balances</code>)</td><td>Payment records (mode, reference, received by)</td></tr><tr><td>Fees charged vs collected per month</td><td>Expenses, income, cash holders, fund balance</td></tr><tr><td>Public Excel (finance sheets)</td><td>Admin Excel, audit log, sync logs, settings</td></tr></tbody></table></div></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>admins</code></td><td>Authorization</td><td><span class="pill read">read</span></td></tr><tr><td><code>audit_log</code></td><td>Every admin change</td><td><span class="pill write">write</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/lib/auth.ts</code></td><td><code>getViewer</code>, <code>isAdminEmail</code>, <code>requireAdmin</code>, <code>DEV_ADMIN_EMAIL</code> (development only)</td></tr><tr><td><code>src/lib/supabase/server.ts</code></td><td>Cookie client, service-role client</td></tr><tr><td><code>src/proxy.ts</code></td><td>Proxy</td></tr><tr><td><code>src/lib/action.ts</code></td><td><code>adminAction</code></td></tr><tr><td><code>src/modules/audit/audit.ts</code></td><td><code>audit</code></td></tr><tr><td><code>src/app/(app)/login/*, src/app/auth/*</code></td><td>Login, callback, sign out</td></tr></tbody></table></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>New tables must add <code>ENABLE ROW LEVEL SECURITY</code> in their migration (see the db-migration skill).</li><li>If a key leaks, rotate it in Supabase / Google Cloud and update Vercel env.</li></ul></section>
+<div class="pager"><a href="feature-nightly-cron.html">← Nightly cron</a><a href="../index.html">Project document →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>

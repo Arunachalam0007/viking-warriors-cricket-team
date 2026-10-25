@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CricHeroes sync · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html" aria-current="page">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Feature</div>
+<h1>CricHeroes sync</h1>
+<p class="lede">How matches, players, scorecards and match-fee charges come from CricHeroes into the database.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill read">feature</span></p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>https://cricheroes.com/team-profile/2921535/team/matches</code></td><td>Latest 12 matches → <code>parseTeamMatches</code></td></tr><tr><td><code>https://cricheroes.com/team-profile/2921535/team/members</code></td><td>Squad with photos (34 players at build time) → <code>parseTeamMembers</code></td></tr><tr><td><code>https://cricheroes.com/scorecard/&amp;lt;matchId&amp;gt;/match/match/scorecard</code></td><td>Scorecard (slug segments are ignored) → <code>parseScorecard</code></td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><p>cricheroes.com is a Next.js site. Page data is embedded as <code>self.__next_f.push([1,"…"])</code> chunks. <code>decodeRscPayload()</code> joins and unescapes them, <code>parseRscObjects()</code> parses each JSON line, and the parsers find the objects by their keys (<code>match_id</code> + <code>team_a_id</code>; <code>player_id</code> + <code>profile_photo</code> + <code>is_captain</code>; <code>scoreCardData</code>). The private CricHeroes API key is not used.</p>
+<h3>Steps of <code>runCricheroesSync(trigger)</code></h3>
+<ol class="steps">
+<li><div>Insert a <code>sync_runs</code> row (kind cricheroes, status running).</div></li>
+<li><div><b>Squad:</b> upsert members by <code>cricheroes_player_id</code>. New → <code>is_member = true</code>. Existing → refresh <code>ch_name</code>, <code>ch_photo_url</code>, styles, captain; <code>name</code> only if not <code>name_locked</code>. Failure here is a warning.</div></li>
+<li><div><b>Matches:</b> fetch the list (0 matches = error, the page format may have changed), keep matches on/after <code>sync_start_date</code>, upsert each by <code>cricheroes_match_id</code>: status, result, <code>outcome</code> (<code>matchOutcome</code>), opponent, scores, ground… Unless <code>finance_locked</code>: set <code>kind</code> (<code>defaultMatchKind</code>) and <code>chargeable</code> (<code>isChargeableByDefault</code>); set <code>fee_per_player</code> from settings only while the match is new or not yet past.</div></li>
+<li><div><b>Scorecard</b> for past matches never synced, or within 3 days of the match (<code>SCORECARD_REFRESH_DAYS</code>): <code>extractTeamPerformance</code> builds our XI (our batting card + yet to bat + our bowlers) with batting, bowling and fielding (catches / stumpings / run outs matched by name from dismissal texts). Unknown players are created as guests (<code>is_member = false</code>). Upserts <code>match_players</code> and <code>player_match_stats</code>; removes CricHeroes-sourced, non-locked roster rows that are no longer on the scorecard.</div></li>
+<li><div><b>Charges:</b> <code>reconcileMatchCharges</code> per match in its own transaction.</div></li>
+<li><div>Close the run with status success and the summary (or failed + error).</div></li>
+</ol></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>players</code></td><td>Squad and guests</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>matches</code></td><td>Match rows</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>match_players</code></td><td>Our XI</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>player_match_stats</code></td><td>Figures</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>charges</code></td><td>Match fees via reconcile</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>settings.team_id, sync_start_date, finance_start_date, match_fee</code></td><td>Inputs</td><td><span class="pill read">read</span></td></tr><tr><td><code>sync_runs</code></td><td>Run log</td><td><span class="pill write">write</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/modules/cricheroes/parser.ts</code></td><td>Page parsing; the only file that knows CricHeroes' structure</td></tr><tr><td><code>src/modules/cricheroes/team-performance.ts</code></td><td><code>extractTeamPerformance</code></td></tr><tr><td><code>src/modules/cricheroes/client.ts</code></td><td><code>fetchTeamMatches</code>, <code>fetchTeamMembers</code>, <code>fetchScorecard</code> (20 s timeout, identifying user agent)</td></tr><tr><td><code>src/modules/sync/sync.ts</code></td><td><code>runCricheroesSync</code>, <code>SyncSource</code> (swappable for tests)</td></tr><tr><td><code>src/modules/finance/rules.ts</code></td><td><code>defaultMatchKind</code>, <code>isChargeableByDefault</code>, <code>matchOutcome</code></td></tr><tr><td><code>scripts/sync.ts</code></td><td><code>npm run sync</code></td></tr><tr><td><code>tests/cricheroes-parser.test.ts, tests/sync-and-ledger.test.ts</code></td><td>Tests against saved pages in <code>tests/fixtures/</code></td></tr><tr><td><code>.claude/skills/cricheroes-sync/SKILL.md</code></td><td>How to fix the parser when CricHeroes changes</td></tr></tbody></table></div></section>
+<section><h2>Data flow</h2><div class="frame"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant J as Cron or Sync now
+  participant S as runCricheroesSync
+  participant C as cricheroes.com
+  participant D as Postgres
+  J->>S: trigger
+  S->>D: sync_runs (running)
+  S->>C: members page
+  S->>D: upsert players
+  S->>C: matches page (latest 12)
+  loop each match since sync_start_date
+    S->>D: upsert match (respect finance_locked)
+    opt past and (never synced or within 3 days)
+      S->>C: scorecard page
+      S->>D: match_players + player_match_stats (respect admin_locked)
+    end
+    S->>D: reconcileMatchCharges
+  end
+  S->>D: sync_runs (success + summary)
+</pre></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Idempotent: re-running never duplicates matches, stats or charges.</li><li>A missing scorecard is a warning ("add players manually"), not a failure.</li><li>Only the latest 12 matches are visible; a nightly run is far more frequent than the team plays 12 matches.</li><li>Upcoming matches are stored (for the dashboard's next fixture) but never charged.</li></ul></section>
+<div class="pager"><a href="admin-settings.html">← Settings</a><a href="feature-finance-ledger.html">Finance ledger →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, securityLevel: "strict", theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
+</script>
+</body>
+</html>

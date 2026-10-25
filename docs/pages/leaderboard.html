@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Leaderboard · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html" aria-current="page">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Public page</div>
+<h1>Leaderboard</h1>
+<p class="lede">Weekly top players, monthly performers and the season table, ranked by MVP points, with category boards.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill public">public</span></p><p>Open to everyone; no login. Pages are rendered on the server on every request from the app database (never from CricHeroes directly).</p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/leaderboard?period=week|month|season</code></td><td>Tab. Default <code>month</code>.</td></tr><tr><td><code>week=YYYY-MM-DD</code></td><td>With <code>period=week</code>: any date in the week; normalised to the Monday (IST). Options: the last 12 weeks.</td></tr><tr><td><code>month=YYYY-MM</code></td><td>With <code>period=month</code>: months since <code>sync_start_date</code>; default the current month.</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><ul>
+<li><b>MVP ranking</b> — top 10 by MVP points (ties broken by runs); guests badged.</li>
+<li><b>Most runs</b>, <b>Most wickets</b> (ties by economy), <b>Most catches &amp; dismissals</b>, <b>Best strike rate</b> (minimum 30 balls) — top 5 each.</li>
+<li><b>How MVP points work</b> — the table from <code>MVP_POINTS</code>.</li>
+</ul></section>
+<section><h2>MVP points</h2><div class="table-wrap"><table><thead><tr><th>Event</th><th>Points</th></tr></thead><tbody><tr><td>Run</td><td>1</td></tr><tr><td>Four (bonus)</td><td>1</td></tr><tr><td>Six (bonus)</td><td>2</td></tr><tr><td>Fifty</td><td>10</td></tr><tr><td>Hundred (instead of fifty)</td><td>25</td></tr><tr><td>Wicket</td><td>20</td></tr><tr><td>3+ wickets in a match</td><td>10</td></tr><tr><td>Maiden</td><td>10</td></tr><tr><td>Catch</td><td>8</td></tr><tr><td>Stumping</td><td>10</td></tr><tr><td>Run out</td><td>8</td></tr></tbody></table></div><p>Defined in <code>src/modules/stats/mvp.ts</code> (<code>MVP_POINTS</code>, <code>mvpPoints()</code>) and summed per match by <code>getPlayerStats</code>.</p></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>players.name, photo_url, ch_photo_url, is_member</code></td><td>Name, photo (custom photo wins), guest badge</td><td><span class="pill read">read</span></td></tr><tr><td><code>player_match_stats.*</code></td><td>Runs, balls, 4s/6s, wickets, balls bowled, runs conceded, maidens, catches, stumpings, run outs</td><td><span class="pill read">read</span></td></tr><tr><td><code>match_players.played</code></td><td>Only rows with played = true count</td><td><span class="pill read">read</span></td></tr><tr><td><code>matches.status, start_time</code></td><td>Only past matches; period filter in IST</td><td><span class="pill read">read</span></td></tr><tr><td><code>settings.sync_start_date</code></td><td>Season start and month options</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/(app)/leaderboard/page.tsx</code></td><td>Page: period logic and boards</td></tr><tr><td><code>src/modules/stats/queries.ts</code></td><td><code>getPlayerStats(db, {from, to})</code></td></tr><tr><td><code>src/modules/stats/mvp.ts</code></td><td>MVP points</td></tr><tr><td><code>src/components/public/link-tabs.tsx</code></td><td>Week / Month / Season tabs (links)</td></tr><tr><td><code>src/components/url-select.tsx</code></td><td>Week and month pickers stored in the URL</td></tr><tr><td><code>src/lib/dates.ts</code></td><td><code>weekStart</code>, <code>addDays</code>, <code>monthsBetween</code>, <code>monthDateRange</code></td></tr></tbody></table></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Weeks run Monday–Sunday in IST.</li><li>Both members and guests appear; guests are marked.</li></ul></section>
+<div class="pager"><a href="player-profile.html">← Player profile</a><a href="matches.html">Matches →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>

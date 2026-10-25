@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Expenses & income · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html" aria-current="page">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Admin page</div>
+<h1>Expenses & income</h1>
+<p class="lede">Team spending (balls, grounds, equipment, tournament fees, food, jerseys), other income, and the people who hold team cash.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill admin">admin only</span></p><p>Admins only. <code>proxy.ts</code> redirects anonymous visitors to <code>/login</code>; the page calls <code>requireAdmin()</code> before loading data, and every action re-checks through <code>adminAction()</code>.</p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/admin/expenses?month=YYYY-MM</code></td><td>Filter both lists by month.</td></tr><tr><td><code>tab=income</code></td><td>Open the Income tab first.</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><ul>
+<li><b>Expenses</b> tab — list with date, category, description, amount, paid from (holder), paid by, mode; add / edit dialog; delete with confirmation; total.</li>
+<li><b>Income</b> tab — sponsorship, ball sale, prize money, other; same controls.</li>
+<li><b>Cash holders</b> card — add a holder, rename, make default, deactivate / reactivate. Rahul is seeded as default.</li>
+</ul></section>
+<section><h2>Actions</h2><div class="callout"><p>Every action below is a server action wrapped by <code>adminAction()</code> (<code>src/lib/action.ts</code>): admin check → zod validation → one database transaction → <code>audit_log</code> entry → <code>refresh()</code> → Google Sheet rewrite after the response (<code>after(() =&gt; syncSheet("change"))</code>).</p></div><div class="table-wrap"><table><thead><tr><th>Control</th><th>Server action</th><th>What happens</th></tr></thead><tbody><tr><td>Add / edit expense</td><td><code>saveExpense</code></td><td>Insert or update <code>expenses</code></td></tr><tr><td>Delete expense</td><td><code>deleteExpense</code></td><td>Delete row</td></tr><tr><td>Add / edit income</td><td><code>saveIncome</code></td><td>Insert or update <code>income</code></td></tr><tr><td>Delete income</td><td><code>deleteIncome</code></td><td>Delete row</td></tr><tr><td>Holder add / rename / default / active</td><td><code>saveCashHolder</code></td><td>Insert or update <code>cash_holders</code>; making one default clears the others</td></tr></tbody></table></div></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>expenses.*</code></td><td></td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>income.*</code></td><td></td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>cash_holders.*</code></td><td></td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>settings.finance_start_date</code></td><td>Month options</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/(app)/admin/expenses/page.tsx</code></td><td>Page</td></tr><tr><td><code>src/components/admin/ops/money-forms.tsx</code></td><td><code>ExpenseDialog</code>, <code>IncomeDialog</code>, delete buttons</td></tr><tr><td><code>src/components/admin/ops/cash-holders-card.tsx</code></td><td>Cash holders</td></tr><tr><td><code>src/components/admin/ops/labels.ts</code></td><td>Category and payment-mode labels</td></tr><tr><td><code>src/modules/finance/actions.ts</code></td><td><code>saveExpense</code>, <code>deleteExpense</code>, <code>saveIncome</code>, <code>deleteIncome</code>, <code>saveCashHolder</code></td></tr><tr><td><code>src/modules/admin/queries.ts</code></td><td><code>listExpenses</code>, <code>listIncome</code>, <code>listCashHolders</code></td></tr></tbody></table></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Expenses and income are admin-only; they feed the fund balance and cash in hand.</li><li>Switching tabs does not change the URL; <code>?tab=income</code> only selects the first tab shown.</li></ul></section>
+<div class="pager"><a href="admin-collections.html">← Collections</a><a href="admin-players.html">Manage players →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>

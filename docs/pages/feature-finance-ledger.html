@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Finance ledger · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html" aria-current="page">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Feature</div>
+<h1>Finance ledger</h1>
+<p class="lede">How charges, payments, allocations, credit and statuses work, and the functions that change them.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill read">feature</span></p></section>
+<section><h2>What is shown</h2><h3>Concepts</h3>
+<ul>
+<li><b>Charge</b> (<code>charges</code>) — something a player owes: <code>match_fee</code> (one per match + player), <code>collection</code> (one per collection + player) or <code>adjustment</code>.</li>
+<li><b>Payment</b> (<code>payments</code>) — money received; <code>source = quick</code> (from "Mark paid") or <code>manual</code> (lump sum).</li>
+<li><b>Allocation</b> (<code>payment_allocations</code>) — part of a payment applied to a charge.</li>
+<li><b>Balance</b> = Σ non-waived charges − Σ payments. Negative = credit.</li>
+<li><b>Status</b> (<code>chargeStatus</code>) — waived, paid (allocated ≥ amount), partial, unpaid.</li>
+</ul>
+<h3>Functions (<code>src/modules/finance/ledger.ts</code>)</h3><div class="table-wrap"><table><thead><tr><th>Function</th><th>What it does</th></tr></thead><tbody><tr><td><code>reconcileMatchCharges(db, matchId)</code></td><td>Makes match fees equal played members × fee when <code>chargeable</code>; keeps paid or admin-locked charges; applies credit to touched players</td></tr><tr><td><code>applyCredit(db, playerId)</code></td><td>Spreads each payment's unallocated money over open charges, oldest <code>charge_date</code> first</td></tr><tr><td><code>recordPayment(db, playerId, amount, meta)</code></td><td>Inserts a manual payment, then <code>applyCredit</code></td></tr><tr><td><code>markChargePaid(db, chargeId, meta)</code></td><td>Inserts a quick payment for exactly the outstanding amount and allocates it</td></tr><tr><td><code>markChargeUnpaid(db, chargeId)</code></td><td>Removes the charge's allocations; deletes quick payments left with no allocations</td></tr><tr><td><code>setChargeAmount(db, chargeId, amount)</code></td><td>Sets amount + <code>admin_locked</code>; trims allocations above the amount; applies credit</td></tr><tr><td><code>setChargeWaived(db, chargeId, waived)</code></td><td>Sets waived + <code>admin_locked</code>; waiving frees paid money as credit</td></tr><tr><td><code>deletePayment(db, paymentId)</code></td><td>Deletes the payment (allocations cascade) and re-applies credit</td></tr></tbody></table></div></section>
+<section><h2>Worked example</h2><div class="table-wrap"><table><thead><tr><th>Step</th><th>Ledger rows</th><th>Balance</th></tr></thead><tbody><tr><td>Plays 2 matches</td><td>2 × charge ₹50</td><td>₹100 due</td></tr><tr><td>Pays ₹150 (lump sum)</td><td>payment ₹150; allocations ₹50 + ₹50</td><td>₹50 credit</td></tr><tr><td>Plays a 3rd match</td><td>charge ₹50; applyCredit allocates the remaining ₹50</td><td>₹0</td></tr><tr><td>Admin sets 3rd fee to ₹30</td><td>amount 30; allocation trimmed to ₹30; ₹20 back to credit</td><td>₹20 credit</td></tr></tbody></table></div></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>charges.*</code></td><td></td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>payments.*</code></td><td></td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>payment_allocations.*</code></td><td></td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>matches.chargeable, fee_per_player, start_time, opponent_name</code></td><td>Reconcile inputs</td><td><span class="pill read">read</span></td></tr><tr><td><code>match_players.played; players.is_member</code></td><td>Who is charged</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/modules/finance/ledger.ts</code></td><td>Ledger functions</td></tr><tr><td><code>src/modules/finance/rules.ts</code></td><td>Fee rule and status</td></tr><tr><td><code>src/modules/finance/queries.ts</code></td><td><code>getChargeRows</code>, <code>getPlayerBalances</code>, <code>summarizeByPlayer</code>, <code>getMatchFinanceSummaries</code>, <code>getRevenueSummary</code></td></tr><tr><td><code>src/modules/finance/actions.ts</code></td><td>Admin server actions wrapping the ledger</td></tr><tr><td><code>tests/sync-and-ledger.test.ts</code></td><td>Ledger tests</td></tr></tbody></table></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Money is whole rupees (integers) everywhere.</li><li>Every ledger change made by an admin runs in one transaction with an audit row.</li><li>Correlated subqueries use explicit table-qualified names (drizzle drops prefixes in single-table selects).</li></ul></section>
+<div class="pager"><a href="feature-cricheroes-sync.html">← CricHeroes sync</a><a href="feature-google-sheets.html">Google Sheet mirror →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>

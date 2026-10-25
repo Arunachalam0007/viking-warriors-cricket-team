@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sync & logs · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="dashboard.html">Dashboard</a></li><li><a href="players.html">Players</a></li><li><a href="player-profile.html">Player profile</a></li><li><a href="leaderboard.html">Leaderboard</a></li><li><a href="matches.html">Matches</a></li><li><a href="match-detail.html">Match detail</a></li><li><a href="finance.html">Finance</a></li><li><a href="reports.html">Reports</a></li><li><a href="login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="admin-overview.html">Revenue overview</a></li><li><a href="admin-match-fees.html">Match fees</a></li><li><a href="admin-payments.html">Payments</a></li><li><a href="admin-collections.html">Collections</a></li><li><a href="admin-expenses.html">Expenses &amp; income</a></li><li><a href="admin-players.html">Manage players</a></li><li><a href="admin-sync.html" aria-current="page">Sync &amp; logs</a></li><li><a href="admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="feature-finance-ledger.html">Finance ledger</a></li><li><a href="feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="feature-excel-export.html">Excel export</a></li><li><a href="feature-nightly-cron.html">Nightly cron</a></li><li><a href="feature-auth-security.html">Auth &amp; security</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">Admin page</div>
+<h1>Sync & logs</h1>
+<p class="lede">Run the CricHeroes sync and Google Sheet rebuild on demand, and review the sync history and the audit trail.</p>
+
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill admin">admin only</span></p><p>Admins only. <code>proxy.ts</code> redirects anonymous visitors to <code>/login</code>; the page calls <code>requireAdmin()</code> before loading data, and every action re-checks through <code>adminAction()</code>.</p></section>
+<section><h2>URL and query parameters</h2><div class="table-wrap"><table><thead><tr><th>URL / parameter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>/admin/sync</code></td><td>No parameters.</td></tr></tbody></table></div></section>
+<section><h2>What is shown</h2><ul>
+<li><b>CricHeroes</b> card — last run / last success, <i>Sync CricHeroes now</i> with the returned summary: matches seen / new / updated, scorecards fetched, new players, charges created / removed, warnings.</li>
+<li><b>Google Sheet</b> card — last run, <i>Rebuild Google Sheet now</i>.</li>
+<li><b>Sync history</b> — last 40 runs: kind, trigger (cron / manual / change), start time (IST), duration, status, summary or error.</li>
+<li><b>Audit log</b> — last 100 admin changes: when, who, action, entity, expandable before / after JSON.</li>
+<li>Note: the nightly job runs at 23:30 IST.</li>
+</ul></section>
+<section><h2>Actions</h2><div class="table-wrap"><table><thead><tr><th>Control</th><th>Server action</th><th>What happens</th></tr></thead><tbody><tr><td>Sync CricHeroes now</td><td><code>runSyncNow</code></td><td><code>runCricheroesSync("manual")</code> then <code>syncSheet("manual")</code>; audit entry <code>sync.manual</code></td></tr><tr><td>Rebuild Google Sheet now</td><td><code>syncSheetNow</code></td><td><code>syncSheet("manual")</code> (no debounce); returns the reason if not configured or failed</td></tr></tbody></table></div></section>
+<section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>sync_runs.*</code></td><td>History</td><td><span class="pill read">read</span> <span class="pill write">write</span></td></tr><tr><td><code>audit_log.*</code></td><td>Audit list</td><td><span class="pill read">read</span></td></tr><tr><td><code>all sync tables</code></td><td>Written by the sync</td><td><span class="pill write">write</span></td></tr></tbody></table></div></section>
+<section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/(app)/admin/sync/page.tsx</code></td><td>Page</td></tr><tr><td><code>src/components/admin/ops/sync-buttons.tsx</code></td><td><code>SyncNowButton</code>, <code>RebuildSheetButton</code></td></tr><tr><td><code>src/components/admin/ops/sync-status.tsx</code></td><td><code>RunStatusBadge</code>, <code>SyncStatusLine</code></td></tr><tr><td><code>src/modules/settings/actions.ts</code></td><td><code>runSyncNow</code>, <code>syncSheetNow</code></td></tr><tr><td><code>src/modules/admin/queries.ts</code></td><td><code>listSyncRuns</code>, <code>listAudit</code>, <code>lastSuccessfulSync</code></td></tr></tbody></table></div></section>
+<section><h2>Rules and edge cases</h2><ul><li>Sheet runs with status <code>skipped</code> are normal: a newer change superseded them, or Sheets is not configured.</li></ul></section>
+<div class="pager"><a href="admin-players.html">← Manage players</a><a href="admin-settings.html">Settings →</a></div>
+<footer class="foot">Viking Warriors Team Portal · documentation generated from the code in this repository.</footer>
+</div>
+</main>
+</div>
+
+</body>
+</html>
