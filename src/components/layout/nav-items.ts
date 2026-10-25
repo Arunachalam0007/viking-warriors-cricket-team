@@ -4,6 +4,7 @@ import {
   Coins,
   FileSpreadsheet,
   HandCoins,
+  KeyRound,
   LayoutDashboard,
   Receipt,
   RefreshCcw,
@@ -35,6 +36,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/players", label: "Manage players", icon: Users },
   { href: "/admin/sync", label: "Sync & logs", icon: RefreshCcw },
   { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/admin/account", label: "My account", icon: KeyRound },
 ];
 
 export function isActive(pathname: string, href: string) {

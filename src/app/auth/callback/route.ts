@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-/** Magic-link and Google sign-in land here with ?code=… (PKCE). */
+/** Optional Google sign-in lands here with ?code=… (PKCE). Email + password login does not use it. */
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
   const code = url.searchParams.get("code");

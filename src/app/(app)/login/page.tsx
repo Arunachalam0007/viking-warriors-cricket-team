@@ -12,14 +12,14 @@ export const metadata: Metadata = { title: "Admin login" };
 
 const ERRORS: Record<string, string> = {
   not_admin: "You are signed in, but this email is not on the admin list.",
-  link: "That login link has expired or was opened in a different browser. Request a new one.",
   google: "Google sign-in is not available right now.",
 };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
   const viewer = await getViewer();
-  if (viewer?.isAdmin) redirect("/admin");
+  const target = typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : "/admin";
+  if (viewer?.isAdmin) redirect(target);
   const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true";
 
   return (
@@ -38,7 +38,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               <AlertDescription>{ERRORS[error]}</AlertDescription>
             </Alert>
           )}
-          <LoginForm />
+          <LoginForm next={target} />
           {googleEnabled && (
             <>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">

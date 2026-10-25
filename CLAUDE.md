@@ -23,7 +23,8 @@ Full docs: `docs/index.html` (architecture) and `docs/pages/*.html` (one per pag
 7. RLS is enabled on every table with no policies (Supabase REST is closed); the server connects as the DB owner. New tables need `ENABLE ROW LEVEL SECURITY` in their migration.
 8. Correlated SQL subqueries must use explicit table-qualified names (drizzle drops the table prefix in single-table selects).
 9. **Every admin `page.tsx` calls `await requireAdmin()` first.** Layouts and pages render in parallel, so the check in `admin/layout.tsx` alone leaks page data. The proxy redirect is only optimistic.
-10. Phone numbers, payments screenshots, audit log, expenses/income and cash holders are admin-only.
+10. Admin login is Supabase email + password (`src/modules/auth/`). No emails are sent; never reintroduce magic links (Supabase email rate limits). Recovery: `npm run admin:password -- <email>`.
+11. Phone numbers, payments screenshots, audit log, expenses/income and cash holders are admin-only.
 
 ## Database connection
 `DATABASE_URL` is the Supabase **Transaction pooler** (port 6543) with the `pg` (node-postgres) driver. Don't switch the driver back to `postgres` (postgres-js): on this pooler its queries stall and pages hang forever. Don't use the Session pooler (5432) at runtime either: it caps clients at 15 and Vercel instances exhaust it. `DIRECT_DATABASE_URL` (5432) is only for migrations. Vercel region `sin1` sits next to the Supabase project (ap-southeast-1); move both together.

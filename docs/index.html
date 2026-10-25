@@ -53,7 +53,7 @@ flowchart LR
   end
   subgraph SB["Supabase (Mumbai)"]
     DB[("Postgres + RLS")]
-    AUTH["Auth (magic link)"]
+    AUTH["Auth (email + password)"]
     ST["Storage player-photos"]
   end
   CRON --> NIGHT
@@ -236,7 +236,7 @@ erDiagram
 <section>
 <h2>Auth and security</h2>
 <ul>
-<li><b>Login:</b> Supabase Auth email magic link (<code>/login</code>), only sent to emails in the <code>admins</code> table. Optional Google sign-in. Session cookies via <code>@supabase/ssr</code>.</li>
+<li><b>Login:</b> Supabase Auth email + password (<code>/login</code>), only for emails in the <code>admins</code> table. Admins add each other with a starting password, reset forgotten ones in Settings and change their own in My account; <code>npm run admin:password</code> recovers access. No emails are sent. Optional Google sign-in. Session cookies via <code>@supabase/ssr</code>.</li>
 <li><b>Authorization:</b> <code>requireAdmin()</code> (<code>src/lib/auth.ts</code>) runs in the admin layout, at the top of <b>every admin page</b> (layouts and pages render in parallel, so the layout alone is not enough) and inside every admin server action through <code>adminAction()</code>. <code>proxy.ts</code> also redirects anonymous visitors from <code>/admin</code> to <code>/login</code> before rendering.</li>
 <li><b>Database:</b> row level security is enabled on every table with no policies, so Supabase's public REST API cannot read or write anything. The server connects as the database owner.</li>
 <li><b>Secrets:</b> <code>SUPABASE_SECRET_KEY</code>, <code>GOOGLE_PRIVATE_KEY</code>, <code>CRON_SECRET</code> and the database URLs are server-only environment variables; the Settings page shows whether they are set, never their values.</li>
@@ -293,7 +293,7 @@ npm run dev</code></pre>
 <li><b>Latest 12 matches only.</b> The public matches page lists the newest 12. A nightly run never misses matches, but if the sync fails for weeks while more than 12 matches are played, older ones must be added by hand.</li>
 <li><b>Matches without a scorecard</b> have no XI; the sync logs a warning and the admin adds players on the match-fee screen.</li>
 <li><b>Name matching for fielding.</b> Catches / stumpings / run outs are matched by name from dismissal text; unusual spellings can miss a credit.</li>
-<li><b>Magic link must be opened in the same browser</b> that requested it (PKCE). Supabase's built-in email sender is limited to a few emails per hour.</li>
+<li><b>Forgotten passwords</b> are reset by another admin (Settings → Admins → Set password) or with <code>npm run admin:password -- email</code>.</li>
 <li><b>Free-tier limits:</b> Supabase pauses after 7 idle days (nightly job prevents it); Vercel Hobby cron runs within the hour; Google Sheets API quota (the writer uses about 4–5 calls per rewrite).</li>
 <li><b>Manual sheet edits are overwritten</b> by the next sync — the app is the source of truth.</li>
 </ul>

@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   // Pages read live data from Postgres on every request (see src/app/layout.tsx),
   // so the Cache Components model is not used.
   cacheComponents: false,
-  serverExternalPackages: ["exceljs", "@electric-sql/pglite", "pg"],
+  serverExternalPackages: ["exceljs", "@electric-sql/pglite", "pg", "ws"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "media.cricheroes.in" },

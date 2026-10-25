@@ -29,7 +29,7 @@ npm run dev         # http://localhost:3000
 2. `npm run db:migrate` — creates tables, enables RLS, seeds admin `arunsha0007@gmail.com` and cash holder `Rahul`.
 3. **Google Sheets**: Google Cloud → enable *Google Sheets API* → create a service account → JSON key. Put `client_email` / `private_key` in env. **Share the sheet with the service account email as Editor.**
 4. **Vercel**: import the GitHub repo, add every variable from `.env.example`, deploy. `vercel.json` sets region `sin1` (next to the Supabase project in Singapore; change both together) and the nightly cron (`CRON_SECRET` protects it).
-5. Log in at `/login` with the admin email, open **Admin → Sync & logs → Sync now**.
+5. Give the first admin a password: `npm run admin:password -- arunsha0007@gmail.com` (prints a temporary password). Log in at `/login`, change it in **Admin → My account**, then open **Admin → Sync & logs → Sync now**.
 
 ## Scripts
 | Command | What it does |

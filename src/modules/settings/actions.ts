@@ -7,6 +7,7 @@ import { admins } from "@/db/schema";
 import { adminAction, isoDate, rupeeAmount, type ActionResult } from "@/lib/action";
 import { requireAdmin } from "@/lib/auth";
 import { audit } from "@/modules/audit/audit";
+import { deleteLogin, passwordSchema, setLoginPassword } from "@/modules/auth/accounts";
 import { resolveTeamUrl } from "@/modules/cricheroes/client";
 import { syncSheet } from "@/modules/sheets/sheets";
 import { runCricheroesSync } from "@/modules/sync/sync";
@@ -36,11 +37,26 @@ export const saveSettingsAction = adminAction(
   },
 );
 
+/** Adds an admin with a starting password (they can change it in My account). */
 export const addAdmin = adminAction(
-  z.object({ email: z.email().transform((e) => e.toLowerCase()) }),
-  async ({ email }, { tx, actor }) => {
+  z.object({ email: z.email().transform((e) => e.toLowerCase()), password: passwordSchema }),
+  async ({ email, password }, { tx, actor }) => {
     await tx.insert(admins).values({ email, addedBy: actor }).onConflictDoNothing();
     await audit({ actor, action: "admin.add", entity: "admin", entityId: email }, tx);
+    // Last, so a failure here rolls the admin row back
+    await setLoginPassword(email, password);
+  },
+  { syncSheet: false },
+);
+
+/** Sets a new password for another admin, e.g. when they forgot theirs. */
+export const setAdminPassword = adminAction(
+  z.object({ email: z.email().transform((e) => e.toLowerCase()), password: passwordSchema }),
+  async ({ email, password }, { tx, actor }) => {
+    const [row] = await tx.select().from(admins).where(eq(admins.email, email));
+    if (!row) throw new Error("That email is not an admin");
+    await audit({ actor, action: "admin.password_reset", entity: "admin", entityId: email }, tx);
+    await setLoginPassword(email, password);
   },
   { syncSheet: false },
 );
@@ -53,6 +69,7 @@ export const removeAdmin = adminAction(
     if (n <= 1) throw new Error("At least one admin is required");
     await tx.delete(admins).where(eq(admins.email, email.toLowerCase()));
     await audit({ actor, action: "admin.remove", entity: "admin", entityId: email }, tx);
+    await deleteLogin(email);
   },
   { syncSheet: false },
 );

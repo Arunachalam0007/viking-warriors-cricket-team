@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClientOptions } from "@supabase/supabase-js";
+import ws from "ws";
 import { cookies } from "next/headers";
 
 export function supabaseConfigured() {
@@ -31,5 +32,13 @@ export function createSupabaseAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) throw new Error("Supabase storage is not configured (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SECRET_KEY)");
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false }, ...nodeRealtime() });
+}
+
+/**
+ * supabase-js refuses to start on Node < 22 (no built-in WebSocket) unless given one.
+ * Vercel runs Node 24; this keeps local scripts and dev servers on Node 20 working.
+ */
+export function nodeRealtime(): Pick<SupabaseClientOptions<"public">, "realtime"> {
+  return typeof globalThis.WebSocket === "undefined" ? { realtime: { transport: ws as never } } : {};
 }
