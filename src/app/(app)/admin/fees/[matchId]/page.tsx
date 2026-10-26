@@ -93,7 +93,7 @@ export default async function MatchFeesPage({ params }: PageProps<"/admin/fees/[
           <span className="flex flex-wrap items-center gap-2">
             <span>{formatDateTime(match.startTime)}</span>
             {match.ground && <span>· {match.ground}</span>}
-            <OutcomeBadge outcome={match.outcome} />
+            <OutcomeBadge outcome={match.outcome} startTime={match.startTime} />
             <Badge variant="secondary" className="capitalize">
               {match.kind}
             </Badge>

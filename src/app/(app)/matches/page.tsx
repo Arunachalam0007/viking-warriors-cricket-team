@@ -16,7 +16,10 @@ export default async function MatchesPage(props: PageProps<"/matches">) {
   const sp = flatParams(await props.searchParams);
   const db = getDb();
   const settings = await getSettings(db);
-  const months = monthsBetween(settings.sync_start_date.slice(0, 7), istMonth(new Date()));
+  const [latest] = await getMatches(db, { limit: 1 });
+  // Up to this month, or further if a fixture is already scheduled later
+  const lastMonth = [istMonth(new Date()), latest ? istMonth(latest.startTime) : ""].sort().at(-1)!;
+  const months = monthsBetween(settings.sync_start_date.slice(0, 7), lastMonth);
   const month = sp.month && MONTH_RE.test(sp.month) ? sp.month : undefined;
   const kind = sp.kind === "individual" || sp.kind === "tournament" ? sp.kind : undefined;
 
@@ -73,7 +76,7 @@ export default async function MatchesPage(props: PageProps<"/matches">) {
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      <OutcomeBadge outcome={m.outcome} />
+                      <OutcomeBadge outcome={m.outcome} startTime={m.startTime} />
                       <Badge variant="secondary" className="text-[10px]">
                         {m.kind === "tournament" ? "Tournament" : "Individual"}
                       </Badge>

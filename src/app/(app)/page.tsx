@@ -125,7 +125,7 @@ export default async function DashboardPage() {
                           {m.ourScore ?? "–"} · {m.opponentScore ?? "–"}
                         </div>
                       </div>
-                      <OutcomeBadge outcome={m.outcome} />
+                      <OutcomeBadge outcome={m.outcome} startTime={m.startTime} />
                     </Link>
                   </li>
                 ))}

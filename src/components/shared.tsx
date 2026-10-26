@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { istDate } from "@/lib/dates";
 import { initials, rupees } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -71,8 +72,12 @@ const OUTCOME_STYLE: Record<string, string> = {
   no_result: "bg-muted text-muted-foreground",
 };
 
-export function OutcomeBadge({ outcome }: { outcome: string | null }) {
-  if (!outcome) return <Badge variant="outline">Upcoming</Badge>;
+/** Without a result: "Upcoming", or "Not played" once its date has gone by (pass `startTime`). */
+export function OutcomeBadge({ outcome, startTime }: { outcome: string | null; startTime?: Date | string }) {
+  if (!outcome) {
+    const stale = startTime !== undefined && istDate(startTime) < istDate(new Date());
+    return <Badge variant="outline" className={cn(stale && "text-muted-foreground")}>{stale ? "Not played" : "Upcoming"}</Badge>;
+  }
   const label = { won: "Won", lost: "Lost", abandoned: "Abandoned", tied: "Tied", no_result: "No result" }[outcome] ?? outcome;
   return (
     <Badge variant="outline" className={cn("font-semibold", OUTCOME_STYLE[outcome])}>

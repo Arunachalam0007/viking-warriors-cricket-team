@@ -142,7 +142,7 @@ export default async function PlayerProfilePage(props: PageProps<"/players/[id]"
                       {m.kind === "tournament" && <span className="ml-1 text-xs text-muted-foreground">(T)</span>}
                     </TableCell>
                     <TableCell>
-                      <OutcomeBadge outcome={m.outcome} />
+                      <OutcomeBadge outcome={m.outcome} startTime={m.startTime} />
                     </TableCell>
                     <TableCell className="text-right tabular">
                       {m.stats?.batted ? `${m.stats.runs}${m.stats.isOut ? "" : "*"} (${m.stats.ballsFaced})` : "–"}

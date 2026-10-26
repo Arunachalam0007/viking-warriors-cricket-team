@@ -71,7 +71,7 @@ export default async function FeesPage({ searchParams }: PageProps<"/admin/fees"
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate font-semibold">vs {m.opponent}</span>
-                    <OutcomeBadge outcome={m.outcome} />
+                    <OutcomeBadge outcome={m.outcome} startTime={m.startTime} />
                     <Badge variant="secondary" className="capitalize">
                       {m.kind}
                     </Badge>

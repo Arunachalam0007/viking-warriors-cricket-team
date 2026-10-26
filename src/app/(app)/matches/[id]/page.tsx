@@ -45,7 +45,7 @@ export default async function MatchDetailPage(props: PageProps<"/matches/[id]">)
     <div className="space-y-5">
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <OutcomeBadge outcome={match.outcome} />
+          <OutcomeBadge outcome={match.outcome} startTime={match.startTime} />
           <Badge variant="secondary">{match.kind === "tournament" ? (match.tournamentName ?? "Tournament") : "Individual match"}</Badge>
           {match.overs && <Badge variant="outline">{match.overs} overs</Badge>}
           {match.ballType && <Badge variant="outline">{match.ballType.toLowerCase()} ball</Badge>}

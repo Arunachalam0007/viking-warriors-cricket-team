@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, lt, sql, type SQL } from "drizzle-orm";
 import { getDb, type Executor } from "@/db";
 import { matches, matchPlayers, playerMatchStats, players } from "@/db/schema";
-import { dateRangeToInstants } from "@/lib/dates";
+import { dateRangeToInstants, istDate } from "@/lib/dates";
 import { mvpPoints } from "./mvp";
 
 export type PeriodFilter = { from?: string; to?: string }; // IST dates, inclusive
@@ -161,7 +161,11 @@ export async function getMatches(
 ) {
   const where: SQL[] = [];
   if (opts.status === "past") where.push(eq(matches.status, "past"));
-  if (opts.status === "upcoming") where.push(sql`${matches.status} <> 'past'`);
+  if (opts.status === "upcoming") {
+    // CricHeroes keeps a fixture "upcoming" forever if it is never scored (e.g. called off),
+    // so anything dated before today is no longer a coming match.
+    where.push(sql`${matches.status} <> 'past'`, gte(matches.startTime, dateRangeToInstants(istDate(new Date()), istDate(new Date())).start));
+  }
   if (opts.kind) where.push(eq(matches.kind, opts.kind));
   if (opts.from || opts.to) {
     const { start, end } = dateRangeToInstants(opts.from ?? "2000-01-01", opts.to ?? "2100-01-01");
