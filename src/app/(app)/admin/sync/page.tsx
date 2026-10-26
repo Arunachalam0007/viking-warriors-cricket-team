@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { RebuildSheetButton, SyncNowButton } from "@/components/admin/ops/sync-buttons";
-import { RunStatusBadge, SyncStatusLine } from "@/components/admin/ops/sync-status";
+import { AutoRefreshWhile } from "@/components/admin/ops/auto-refresh";
+import { RunStatusBadge, SyncAgentLine, SyncStatusLine } from "@/components/admin/ops/sync-status";
 import { EmptyState, PageHeader } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getDb } from "@/db";
 import { formatDateTime } from "@/lib/dates";
 import { lastSuccessfulSync, listAudit, listSyncRuns } from "@/modules/admin/queries";
+import { agentStatus, syncViaAgent } from "@/modules/sync/queue";
 import { requireAdmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Sync & logs" };
@@ -54,7 +56,14 @@ export default async function SyncPage() {
   // Layouts and pages render in parallel, so each admin page must check on its own.
   await requireAdmin();
   const db = getDb();
-  const [runs, auditRows, ch, sheets] = await Promise.all([listSyncRuns(db, 40), listAudit(db, 100), lastSuccessfulSync(db, "cricheroes"), lastSuccessfulSync(db, "sheets")]);
+  const [runs, auditRows, ch, sheets, agent] = await Promise.all([
+    listSyncRuns(db, 40),
+    listAudit(db, 100),
+    lastSuccessfulSync(db, "cricheroes"),
+    lastSuccessfulSync(db, "sheets"),
+    agentStatus(db),
+  ]);
+  const syncInFlight = runs.some((r) => r.status === "queued" || r.status === "running");
 
   return (
     <div className="grid gap-6">
@@ -71,7 +80,9 @@ export default async function SyncPage() {
           </CardHeader>
           <CardContent className="grid gap-3">
             <SyncStatusLine label="Last run" last={ch.last} lastSuccess={ch.lastSuccess} />
+            {syncViaAgent() && <SyncAgentLine {...agent} />}
             <SyncNowButton />
+            <AutoRefreshWhile active={syncInFlight} />
           </CardContent>
         </Card>
         <Card className="min-w-0">

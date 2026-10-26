@@ -13,6 +13,9 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "sync": "tsx --conditions=react-server scripts/sync.ts",
+    "sync:agent": "tsx --conditions=react-server scripts/sync-agent.ts",
+    "sync:agent:install": "zsh scripts/sync-agent/install.sh",
+    "sync:agent:uninstall": "zsh scripts/sync-agent/install.sh uninstall",
     "admin:password": "tsx --conditions=react-server scripts/admin-password.ts"
   },
   "dependencies": {

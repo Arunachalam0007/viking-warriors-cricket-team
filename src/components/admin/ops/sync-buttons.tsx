@@ -1,7 +1,9 @@
 "use client";
 
 import { FileSpreadsheet, Loader2, RefreshCcw } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useAction } from "@/components/admin/use-action";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,6 +24,7 @@ type SheetResult = { status?: string; reason?: string; tabs?: string[] };
 
 export function SyncNowButton({ showSummary = true, size = "default" }: { showSummary?: boolean; size?: "default" | "sm" }) {
   const { run, pending } = useAction();
+  const router = useRouter();
   const [result, setResult] = useState<{ summary: SyncSummary; sheets: SheetResult } | null>(null);
 
   return (
@@ -30,7 +33,18 @@ export function SyncNowButton({ showSummary = true, size = "default" }: { showSu
         size={size}
         disabled={pending}
         onClick={() =>
-          run(runSyncNow, "CricHeroes sync finished", (data) => setResult((data as { summary: SyncSummary; sheets: SheetResult }) ?? null))
+          run(runSyncNow, undefined, (data) => {
+            if (data && "queued" in data) {
+              // Live site: the sync helper on the team's Mac runs it (see modules/sync/queue.ts)
+              toast.success(data.alreadyQueued ? "A sync is already on its way" : "Sync requested", {
+                description: "The sync helper on the Mac picks it up within a minute. This page updates when it's done.",
+              });
+              router.refresh();
+              return;
+            }
+            toast.success("CricHeroes sync finished");
+            setResult((data as { summary: SyncSummary; sheets: SheetResult }) ?? null);
+          })
         }
       >
         {pending ? <Loader2 className="animate-spin" /> : <RefreshCcw />}

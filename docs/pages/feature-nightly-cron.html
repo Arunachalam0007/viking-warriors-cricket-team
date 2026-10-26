@@ -24,10 +24,19 @@
 <p><code>0 18 * * *</code> = 18:00 UTC = <b>23:30 IST</b>. On Vercel's Hobby plan the job runs once a day, at some point within that hour. Vercel sends the <code>CRON_SECRET</code> environment variable automatically.</p>
 <ol class="steps">
 <li><div>Check the secret.</div></li>
-<li><div><code>runCricheroesSync("cron")</code> — errors are caught and reported.</div></li>
+<li><div>On Vercel: CricHeroes is <b>skipped</b> — Cloudflare shows every cloud server a robot check (HTTP 403), so the sync helper on the team Mac runs the CricHeroes part (see below). Elsewhere: <code>runCricheroesSync("cron")</code>, errors caught and reported.</div></li>
 <li><div><code>syncSheet("cron")</code> — always runs, so admin edits are mirrored even if CricHeroes failed.</div></li>
 <li><div>Return JSON with both results; HTTP 500 if CricHeroes failed (visible in Vercel's cron logs).</div></li>
-</ol></section>
+</ol>
+<h3>The sync helper (team Mac)</h3>
+<p><code>scripts/sync-agent.ts</code> runs as a launchd service on the Mac (<code>npm run sync:agent:install</code>; log <code>~/Library/Logs/viking-warriors-sync.log</code>; remove with <code>npm run sync:agent:uninstall</code>). Every 30 s it:</p>
+<ol class="steps">
+<li><div>Writes a heartbeat (<code>settings.sync_agent_seen_at</code>) — Admin → Sync &amp; logs shows it Online / Offline.</div></li>
+<li><div>Fails runs stuck in <code>running</code> over 20 min; skips <code>queued</code> requests older than 6 h.</div></li>
+<li><div>Claims each <code>queued</code> request from the live “Sync CricHeroes now” button and runs the sync + Sheet rebuild into that same <code>sync_runs</code> row.</div></li>
+<li><div>Runs the nightly sync if the latest 23:30 IST slot has no successful <code>cron</code> run (catches up when the Mac wakes; a failure retries after 30 min, 3 tries a night).</div></li>
+</ol>
+<p><code>CRICHEROES_SYNC_VIA=agent|direct</code> overrides the mode (default: <code>agent</code> on Vercel, <code>direct</code> elsewhere). Code: <code>src/modules/sync/queue.ts</code>.</p></section>
 <section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>sync_runs</code></td><td>One row per job part</td><td><span class="pill write">write</span></td></tr></tbody></table></div></section>
 <section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/app/api/cron/nightly/route.ts</code></td><td>Route (maxDuration 60 s)</td></tr><tr><td><code>vercel.json</code></td><td>Schedule and region</td></tr></tbody></table></div></section>
 <section><h2>Rules and edge cases</h2><ul><li>The daily run also keeps the Supabase free project from pausing after 7 idle days.</li><li>To run it by hand use Admin → Sync &amp; logs.</li></ul></section>

@@ -35,3 +35,24 @@ export function SyncStatusLine({ label, last, lastSuccess }: { label: string; la
     </div>
   );
 }
+
+/** Whether the sync helper on the team's Mac is checking in (it does so every 30 seconds). */
+export function SyncAgentLine({ lastSeen, online }: { lastSeen: Date | null; online: boolean }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+      <div className="min-w-0">
+        <div className="font-medium">Sync helper (team Mac)</div>
+        <div className="text-muted-foreground">
+          {lastSeen === null
+            ? "Never connected. Syncs wait until it runs: npm run sync:agent:install on the Mac."
+            : online
+              ? "Online. “Sync now” requests run within a minute."
+              : `Last seen ${formatDateTime(lastSeen)}. Requests wait until the Mac is awake.`}
+        </div>
+      </div>
+      <Badge variant="outline" className={cn("font-semibold", online ? STYLE.success : STYLE.queued)}>
+        {online ? "Online" : "Offline"}
+      </Badge>
+    </div>
+  );
+}

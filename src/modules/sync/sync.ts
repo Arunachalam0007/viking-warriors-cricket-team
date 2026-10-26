@@ -43,8 +43,12 @@ export async function runCricheroesSync(
   trigger: "cron" | "manual",
   sourceOverride?: SyncSource,
   db: DB = getDb(),
+  /** A request queued by "Sync now" (see queue.ts) that this run fulfils, instead of a new row */
+  queuedRunId?: number,
 ): Promise<{ runId: number; summary: SyncSummary }> {
-  const [run] = await db.insert(syncRuns).values({ kind: "cricheroes", trigger }).returning();
+  const [run] = queuedRunId
+    ? [{ id: queuedRunId }]
+    : await db.insert(syncRuns).values({ kind: "cricheroes", trigger }).returning({ id: syncRuns.id });
   const summary: SyncSummary = {
     matchesSeen: 0,
     matchesNew: 0,

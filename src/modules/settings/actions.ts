@@ -10,6 +10,7 @@ import { audit } from "@/modules/audit/audit";
 import { deleteLogin, passwordSchema, setLoginPassword } from "@/modules/auth/accounts";
 import { resolveTeamUrl } from "@/modules/cricheroes/client";
 import { syncSheet } from "@/modules/sheets/sheets";
+import { requestCricheroesSync, syncViaAgent } from "@/modules/sync/queue";
 import { runCricheroesSync } from "@/modules/sync/sync";
 import { getSettings, saveSettings, sheetIdFromUrl } from "./settings";
 
@@ -74,9 +75,18 @@ export const removeAdmin = adminAction(
   { syncSheet: false },
 );
 
-/** "Sync now" button: pulls CricHeroes, then rewrites the Google Sheet. */
-export async function runSyncNow(): Promise<ActionResult<{ summary: unknown; sheets: unknown }>> {
+/**
+ * "Sync now" button: pulls CricHeroes, then rewrites the Google Sheet. On Vercel CricHeroes refuses
+ * the server, so the request is queued for the sync helper on the team's Mac instead (queue.ts).
+ */
+export async function runSyncNow(): Promise<ActionResult<{ summary: unknown; sheets: unknown } | { queued: true; alreadyQueued: boolean }>> {
   const actor = await requireAdmin();
+  if (syncViaAgent()) {
+    const { runId, alreadyQueued } = await requestCricheroesSync();
+    if (!alreadyQueued) await audit({ actor, action: "sync.request", entity: "sync", entityId: String(runId) });
+    refresh();
+    return { ok: true, data: { queued: true, alreadyQueued } };
+  }
   try {
     const { summary } = await runCricheroesSync("manual");
     const sheets = await syncSheet("manual");

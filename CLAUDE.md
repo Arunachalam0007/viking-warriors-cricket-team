@@ -10,6 +10,7 @@ Full docs: `docs/index.html` (architecture) and `docs/pages/*.html` (one per pag
 - `npm run dev` — dev server. Local DB without Supabase: `DATABASE_URL="pglite:./.pglite"` and `DEV_ADMIN_EMAIL=...` in `.env.local`
 - `npm run db:migrate` — apply `drizzle/*.sql`; `npm run db:generate -- --name <change>` after editing `src/db/schema.ts`
 - `npm run sync` — run the CricHeroes sync locally (same code as the nightly cron)
+- `npm run sync:agent:install` / `sync:agent:uninstall` — the sync helper service on the team Mac (log: `~/Library/Logs/viking-warriors-sync.log`)
 - `npm test` — vitest (parser against saved CricHeroes pages in `tests/fixtures`, sync + ledger on in-memory PGlite)
 - `npm run typecheck`, `npm run lint`
 
@@ -28,6 +29,9 @@ Full docs: `docs/index.html` (architecture) and `docs/pages/*.html` (one per pag
 
 ## Database connection
 `DATABASE_URL` is the Supabase **Transaction pooler** (port 6543) with the `pg` (node-postgres) driver. Don't switch the driver back to `postgres` (postgres-js): on this pooler its queries stall and pages hang forever. Don't use the Session pooler (5432) at runtime either: it caps clients at 15 and Vercel instances exhaust it. `DIRECT_DATABASE_URL` (5432) is only for migrations. Vercel region `sin1` sits next to the Supabase project (ap-southeast-1); move both together.
+
+## CricHeroes sync runs on the team Mac
+Cloudflare in front of cricheroes.com answers every cloud server (Vercel, GitHub Actions — tested) with a "Just a moment…" robot check (HTTP 403), whatever the headers. A home connection gets through. So on Vercel the CricHeroes sync never runs in place: "Sync CricHeroes now" queues a `sync_runs` row (`status = 'queued'`) and the nightly cron only rebuilds the Sheet; the sync helper (`scripts/sync-agent.ts`, a launchd service on the Mac) claims queued requests every 30 s and runs the nightly sync, catching up after sleep. Logic in `src/modules/sync/queue.ts`; `CRICHEROES_SYNC_VIA=agent|direct` overrides the default (agent on Vercel, direct elsewhere).
 
 ## Layout
 - `src/modules/<feature>/` — `queries.ts` (reads), `actions.ts` ("use server" mutations), domain logic

@@ -4,7 +4,7 @@ Public site and admin portal for the **Viking Warriors** cricket team ([CricHero
 
 - **Public:** dashboard, player profiles, weekly / monthly / season leaderboards, matches, match-fee finance with Excel export, reports.
 - **Admin (login):** match fees per match and per player (paid / not paid / waived / custom amount), payments, tournament & monthly collections, expenses & income, cash holders, revenue overview, player photos / phones / names, settings, sync logs and audit trail.
-- **Nightly sync** from CricHeroes at 23:30 IST. Finance is mirrored month-wise into Google Sheets.
+- **Nightly sync** from CricHeroes at 23:30 IST, run by the sync helper on the team Mac (CricHeroes blocks cloud servers). Finance is mirrored month-wise into Google Sheets.
 
 Docs: open [`docs/index.html`](docs/index.html) in a browser.
 
@@ -41,3 +41,4 @@ npm run dev         # http://localhost:3000
 | `npm run db:generate` | Create a migration after editing `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations |
 | `npm run sync` | Run the CricHeroes sync once |
+| `npm run sync:agent:install` | Install the sync helper on this Mac: runs the live site's "Sync now" requests and the nightly sync (`sync:agent:uninstall` removes it) |

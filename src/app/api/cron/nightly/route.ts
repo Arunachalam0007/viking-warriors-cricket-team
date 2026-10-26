@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { syncSheet } from "@/modules/sheets/sheets";
+import { syncViaAgent } from "@/modules/sync/queue";
 import { runCricheroesSync } from "@/modules/sync/sync";
 
 // Vercel Cron: 18:00 UTC = 23:30 IST (see vercel.json). Hobby plan runs it within that hour.
@@ -12,10 +13,15 @@ export async function GET(request: NextRequest) {
   }
 
   const result: Record<string, unknown> = {};
-  try {
-    result.cricheroes = (await runCricheroesSync("cron")).summary;
-  } catch (e) {
-    result.cricheroes = { error: (e as Error).message };
+  if (syncViaAgent()) {
+    // CricHeroes refuses Vercel; the sync helper on the team's Mac runs the nightly sync (queue.ts)
+    result.cricheroes = { skipped: "run by the sync helper" };
+  } else {
+    try {
+      result.cricheroes = (await runCricheroesSync("cron")).summary;
+    } catch (e) {
+      result.cricheroes = { error: (e as Error).message };
+    }
   }
   // The sheet is rebuilt nightly even if CricHeroes failed, so manual edits made in the app are mirrored.
   result.sheets = await syncSheet("cron");
