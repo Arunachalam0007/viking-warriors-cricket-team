@@ -1,6 +1,7 @@
 import { ArrowRight, CalendarClock, MapPin } from "lucide-react";
 import Link from "next/link";
 import { EmptyState, Money, OutcomeBadge, PageHeader, PlayerAvatar, StatTile } from "@/components/shared";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDb } from "@/db";
@@ -20,14 +21,13 @@ export default async function DashboardPage() {
   const [settings, record, upcoming, recent, monthStats, charges, balances] = await Promise.all([
     getSettings(db),
     getTeamRecord(db),
-    getMatches(db, { status: "upcoming", limit: 1 }),
+    getMatches(db, { status: "upcoming" }),
     getMatches(db, { status: "past", limit: 5 }),
     getPlayerStats(db, { from, to }),
     getChargeRows(db),
     getPlayerBalances(db),
   ]);
 
-  const next = upcoming[0];
   const top = [...monthStats].sort((a, b) => b.mvp - a.mvp).slice(0, 3);
   const charged = charges.filter((c) => !c.waived).reduce((s, c) => s + c.amount, 0);
   const collected = charges.reduce((s, c) => s + c.paid, 0);
@@ -48,29 +48,38 @@ export default async function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="font-heading text-xl tracking-wide">Next fixture</CardTitle>
+            <CardTitle className="font-heading text-xl tracking-wide">
+              Upcoming fixtures{upcoming.length > 1 && <span className="ml-2 text-base text-muted-foreground">({upcoming.length})</span>}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {next ? (
-              <Link href={`/matches/${next.id}`} className="flex items-center gap-4 rounded-lg p-1 hover:bg-muted/50">
-                <PlayerAvatar name={next.opponentName} photo={next.opponentLogo} size="lg" />
-                <div className="min-w-0">
-                  <div className="font-heading text-2xl font-bold">vs {next.opponentName}</div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <CalendarClock className="size-4" />
-                      {formatDateTime(next.startTime)}
-                    </span>
-                    {next.ground && (
-                      <span className="inline-flex items-center gap-1">
-                        <MapPin className="size-4" />
-                        {next.ground}
-                      </span>
-                    )}
-                    {next.tournamentName && <span>{next.tournamentName}</span>}
-                  </div>
-                </div>
-              </Link>
+            {upcoming.length > 0 ? (
+              <ul className="divide-y">
+                {upcoming.map((m, i) => (
+                  <li key={m.id} className="py-1.5 first:pt-0 last:pb-0">
+                    <Link href={`/matches/${m.id}`} className="flex items-center gap-4 rounded-lg p-1 hover:bg-muted/50">
+                      <PlayerAvatar name={m.opponentName} photo={m.opponentLogo} size={i === 0 ? "lg" : undefined} />
+                      <div className="min-w-0 flex-1">
+                        <div className={i === 0 ? "font-heading text-2xl font-bold" : "font-heading text-lg font-bold"}>vs {m.opponentName}</div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarClock className="size-4" />
+                            {formatDateTime(m.startTime)}
+                          </span>
+                          {m.ground && (
+                            <span className="inline-flex items-center gap-1">
+                              <MapPin className="size-4" />
+                              {m.ground}
+                            </span>
+                          )}
+                          {m.tournamentName && <span>{m.tournamentName}</span>}
+                        </div>
+                      </div>
+                      {i === 0 && <Badge className="shrink-0">Next</Badge>}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             ) : (
               <EmptyState title="No upcoming match scheduled">New fixtures appear after the nightly CricHeroes sync.</EmptyState>
             )}
