@@ -1,4 +1,7 @@
+import Image from "next/image";
+import Link from "next/link";
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { HeaderCricketScene } from "@/components/layout/header-cricket";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -11,10 +14,15 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     <SidebarProvider>
       <AppSidebar viewer={viewer} teamName={teamName} />
       <SidebarInset className="min-w-0">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/90 px-4 backdrop-blur pt-[env(safe-area-inset-top)] box-content">
-          <SidebarTrigger className="-ml-1" />
-          <span className="font-heading text-lg font-bold tracking-wide md:hidden">{teamName}</span>
-          <div className="ml-auto flex items-center gap-1">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 overflow-hidden border-b bg-background/90 px-4 backdrop-blur pt-[env(safe-area-inset-top)] box-content">
+          <SidebarTrigger className="relative z-10 -ml-1" />
+          {/* Logo + name on phones; the desktop sidebar already shows them */}
+          <Link href="/" className="relative z-10 flex shrink-0 items-center gap-2 md:hidden">
+            <Image src="/team-logo.jpeg" alt="" width={72} height={72} priority className="size-9 shrink-0 rounded-lg bg-white object-contain ring-1 ring-black/5" />
+            <span className="truncate font-heading text-lg font-bold tracking-wide">{teamName}</span>
+          </Link>
+          <HeaderCricketScene />
+          <div className="relative z-10 flex shrink-0 items-center gap-1">
             <ThemeToggle />
           </div>
         </header>

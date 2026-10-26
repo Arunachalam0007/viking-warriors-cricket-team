@@ -32,7 +32,7 @@ export function AppSidebar({ viewer, teamName }: { viewer: { email: string; isAd
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 + i * 0.05, duration: 0.3, ease: "easeOut" }}
         >
-          <SidebarMenuButton asChild isActive={isActive(pathname, item.href)} tooltip={item.label}>
+          <SidebarMenuButton asChild isActive={isActive(pathname, item.href)} tooltip={item.label} className="font-medium data-active:font-semibold">
             <Link href={item.href} onClick={() => setOpenMobile(false)}>
               <item.icon />
               <span>{item.label}</span>

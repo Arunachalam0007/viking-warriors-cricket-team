@@ -78,14 +78,16 @@
   --chart-4: oklch(0.55 0.1 250);
   --chart-5: oklch(0.45 0.05 165);
   --radius: 0.625rem;
-  --sidebar: oklch(0.44 0.17 25);
-  --sidebar-foreground: oklch(0.97 0.012 25);
-  --sidebar-primary: oklch(0.98 0.01 25);
-  --sidebar-primary-foreground: oklch(0.4 0.16 25);
-  --sidebar-accent: oklch(0.36 0.15 25);
+  --sidebar: oklch(0.36 0.14 264);
+  --sidebar-from: oklch(0.33 0.14 264);
+  --sidebar-to: oklch(0.56 0.2 352);
+  --sidebar-foreground: oklch(0.98 0.01 300);
+  --sidebar-primary: oklch(0.99 0 0);
+  --sidebar-primary-foreground: oklch(0.36 0.14 264);
+  --sidebar-accent: oklch(1 0 0 / 18%);
   --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.52 0.15 25);
-  --sidebar-ring: oklch(0.85 0.08 25);
+  --sidebar-border: oklch(1 0 0 / 18%);
+  --sidebar-ring: oklch(0.9 0.06 330);
 }
 
 .dark {
@@ -114,14 +116,16 @@
   --chart-3: oklch(0.8 0.12 80);
   --chart-4: oklch(0.7 0.1 250);
   --chart-5: oklch(0.6 0.04 165);
-  --sidebar: oklch(0.3 0.11 25);
-  --sidebar-foreground: oklch(0.95 0.012 25);
-  --sidebar-primary: oklch(0.95 0.01 25);
-  --sidebar-primary-foreground: oklch(0.3 0.11 25);
-  --sidebar-accent: oklch(0.39 0.13 25);
+  --sidebar: oklch(0.26 0.1 264);
+  --sidebar-from: oklch(0.24 0.1 264);
+  --sidebar-to: oklch(0.42 0.16 352);
+  --sidebar-foreground: oklch(0.96 0.01 300);
+  --sidebar-primary: oklch(0.96 0 0);
+  --sidebar-primary-foreground: oklch(0.26 0.1 264);
+  --sidebar-accent: oklch(1 0 0 / 14%);
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.75 0.1 25);
+  --sidebar-ring: oklch(0.8 0.08 330);
 }
 
 @layer base {
@@ -140,4 +144,132 @@
 }
 @layer utilities {
   .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* Sidebar (desktop and the phone slide-out): team blue at the top fading to pink at the bottom */
+[data-sidebar="sidebar"] {
+  background-image: linear-gradient(180deg, var(--sidebar-from) 0%, var(--sidebar-to) 100%);
+}
+
+/* Phone bottom menu: the same team colours, left to right */
+.team-gradient-x {
+  background-color: var(--sidebar);
+  background-image: linear-gradient(90deg, var(--sidebar-from) 0%, var(--sidebar-to) 100%);
+}
+
+/* Page background: a large, faint Viking Warriors logo watermark on soft team-colour glows.
+   Cards stay solid on top. (public/team-logo-bg.webp already has the faintness baked in.) */
+[data-slot="sidebar-inset"] {
+  background-image:
+    url("/team-logo-bg.webp"),
+    radial-gradient(60rem 40rem at 100% 0%, oklch(0.56 0.2 352 / 0.07), transparent 70%),
+    radial-gradient(50rem 40rem at 0% 100%, oklch(0.33 0.14 264 / 0.07), transparent 70%);
+  background-repeat: no-repeat;
+  background-position: center 58%, 0 0, 0 0;
+  background-size: min(760px, 88vw) auto, auto, auto;
+  background-attachment: fixed;
+}
+.dark [data-slot="sidebar-inset"] {
+  background-image:
+    url("/team-logo-bg.webp"),
+    radial-gradient(60rem 40rem at 100% 0%, oklch(0.56 0.2 352 / 0.1), transparent 70%),
+    radial-gradient(50rem 40rem at 0% 100%, oklch(0.45 0.14 264 / 0.12), transparent 70%);
+}
+
+/* Top bar: a looping cricket scene, two deliveries per 8s loop.
+   0-50%: bowled in, hit back over the bowler's head for SIX. 50-100%: bowled again, batsman misses, BOWLED. */
+.shot-figure { color: #1e3a8a; }
+.dark .shot-figure { color: #c7d2fe; }
+.shot-six, .shot-out { color: oklch(0.56 0.2 352); opacity: 0; }
+.dark .shot-six, .dark .shot-out { color: oklch(0.75 0.17 352); }
+
+/* Shrink the scene on narrow phones so it never sits over the title */
+.shot-wrap { container-type: inline-size; }
+.shot-scene { transform-origin: 100% 100%; }
+@container (max-width: 199px) { .shot-scene { transform: scale(0.85); } }
+@container (max-width: 170px) { .shot-scene { transform: scale(0.72); } }
+@container (max-width: 145px) { .shot-scene { transform: scale(0.6); } }
+@container (max-width: 122px) { .shot-scene { transform: scale(0.54); } }
+@container (max-width: 108px) { .shot-scene { transform: scale(0.47); } }
+@container (max-width: 90px) { .shot-scene { display: none; } }
+
+@keyframes shot-ball {
+  /* Delivery 1: SIX */
+  0%, 7%   { transform: translate(0, -36px); opacity: 0; animation-timing-function: ease-in; }
+  8%       { transform: translate(0, -36px); opacity: 1; animation-timing-function: ease-in; }
+  19%      { transform: translate(78px, 0); animation-timing-function: ease-out; }          /* pitches */
+  26%      { transform: translate(122px, -9px); animation-timing-function: ease-out; }      /* meets the bat */
+  33%      { transform: translate(70px, -34px); animation-timing-function: ease-in; }
+  41%      { transform: translate(0, -92px); opacity: 1; }                                   /* over the bowler */
+  42%, 57% { transform: translate(0, -36px); opacity: 0; animation-timing-function: ease-in; }
+  /* Delivery 2: BOWLED */
+  58%      { transform: translate(0, -36px); opacity: 1; animation-timing-function: ease-in; }
+  69%      { transform: translate(82px, 0); animation-timing-function: ease-out; }          /* pitches */
+  78%      { transform: translate(158px, -6px); animation-timing-function: ease-out; }      /* past the bat, into the stumps */
+  82%      { transform: translate(148px, -2px); opacity: 1; }
+  88%, 100% { transform: translate(146px, 0); opacity: 0; }
+}
+@keyframes shot-bowler {
+  /* run-up, delivery stride, then back to the mark */
+  0%, 50%   { transform: translateX(-12px); }
+  7%, 57%   { transform: translateX(0); }
+  14%, 64%  { transform: translateX(3px); }
+  40%, 90%  { transform: translateX(-12px); }
+}
+@keyframes shot-bowl-arm {
+  0%, 3%, 50%, 53%    { transform: rotate(0deg); }
+  8%, 58%             { transform: rotate(-200deg); }   /* arm over the top, release */
+  13%, 63%            { transform: rotate(-330deg); }
+  14%, 49%, 64%, 100% { transform: rotate(0deg); }
+}
+@keyframes shot-bat {
+  0%, 17%   { transform: rotate(-20deg); }    /* stance */
+  23%       { transform: rotate(-150deg); }   /* backlift */
+  26%       { transform: rotate(15deg); }     /* contact */
+  31%       { transform: rotate(155deg); }    /* follow-through */
+  44%, 66%  { transform: rotate(-20deg); }
+  73%       { transform: rotate(-150deg); }   /* backlift */
+  76%       { transform: rotate(10deg); }     /* swings early... */
+  80%       { transform: rotate(120deg); }    /* ...and misses */
+  94%, 100% { transform: rotate(-20deg); }
+}
+@keyframes shot-stumps {
+  0%, 77%   { transform: rotate(0deg); }
+  80%, 92%  { transform: rotate(22deg); }     /* knocked back */
+  96%, 100% { transform: rotate(0deg); }
+}
+@keyframes shot-bails {
+  0%, 77%   { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  84%       { transform: translate(10px, -16px) rotate(160deg); opacity: 1; }
+  92%       { transform: translate(14px, -4px) rotate(300deg); opacity: 0; }
+  96%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+}
+@keyframes shot-six {
+  0%, 27%   { opacity: 0; transform: translateY(6px) scale(0.6); }
+  31%       { opacity: 1; transform: translateY(0) scale(1.15); }
+  41%       { opacity: 1; transform: translateY(-3px) scale(1); }
+  46%, 100% { opacity: 0; transform: translateY(-6px) scale(1); }
+}
+@keyframes shot-out {
+  0%, 79%   { opacity: 0; transform: translateY(6px) scale(0.6); }
+  83%       { opacity: 1; transform: translateY(0) scale(1.15); }
+  93%       { opacity: 1; transform: translateY(-3px) scale(1); }
+  98%, 100% { opacity: 0; transform: translateY(-6px) scale(1); }
+}
+@keyframes shot-ball-spin { to { transform: rotate(-360deg); } }
+
+.shot-ball { animation: shot-ball 8s infinite; }
+.shot-ball-spin { animation: shot-ball-spin 0.5s linear infinite; }
+.shot-bowler { animation: shot-bowler 8s ease-in-out infinite; }
+.shot-bowl-arm { transform-box: view-box; transform-origin: 14.5px 15px; animation: shot-bowl-arm 8s ease-in-out infinite; }
+.shot-bat { transform-box: fill-box; transform-origin: 50% 0%; animation: shot-bat 8s ease-in-out infinite; }
+.shot-stumps { transform-box: fill-box; transform-origin: 50% 100%; animation: shot-stumps 8s ease-out infinite; }
+.shot-bails { transform-box: fill-box; transform-origin: 50% 50%; animation: shot-bails 8s ease-out infinite; }
+.shot-six { animation: shot-six 8s ease-out infinite; }
+.shot-out { animation: shot-out 8s ease-out infinite; }
+
+/* Reduce Motion: keep the scene playing, at half speed (same choice as the card animation) */
+@media (prefers-reduced-motion: reduce) {
+  .shot-ball, .shot-bowler, .shot-bowl-arm, .shot-bat, .shot-stumps, .shot-bails, .shot-six, .shot-out { animation-duration: 16s; }
+  .shot-ball-spin { animation-duration: 1.2s; }
 }

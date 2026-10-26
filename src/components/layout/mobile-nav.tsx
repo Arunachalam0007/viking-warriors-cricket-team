@@ -11,18 +11,19 @@ export function MobileNav() {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      className="team-gradient-x fixed inset-x-0 bottom-0 z-40 border-t border-sidebar-border text-sidebar-foreground pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgb(0_0_0/0.15)] md:hidden"
     >
-      <ul className="grid grid-cols-5">
+      <ul className="grid grid-cols-5 gap-1 px-1 py-1">
         {PUBLIC_NAV.filter((i) => i.mobile).map((item) => {
           const active = isActive(pathname, item.href);
           return (
             <li key={item.href}>
               <Link
                 href={item.href}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium text-muted-foreground",
-                  active && "text-primary",
+                  "flex flex-col items-center gap-0.5 rounded-lg py-1.5 text-[11px] font-semibold text-sidebar-foreground/80 transition-colors",
+                  active && "bg-sidebar-accent font-bold text-sidebar-accent-foreground",
                 )}
               >
                 <item.icon className="size-5" />
