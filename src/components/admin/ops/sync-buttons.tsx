@@ -13,6 +13,7 @@ type SyncSummary = {
   matchesSeen: number;
   matchesNew: number;
   matchesUpdated: number;
+  matchesRemoved?: number;
   scorecardsFetched: number;
   playersNew: number;
   chargesCreated: number;
@@ -70,6 +71,7 @@ function SyncSummaryView({ summary, sheets }: { summary: SyncSummary; sheets: Sh
     ["Matches seen", summary.matchesSeen],
     ["New matches", summary.matchesNew],
     ["Updated matches", summary.matchesUpdated],
+    ["Removed matches", summary.matchesRemoved ?? 0],
     ["Scorecards read", summary.scorecardsFetched],
     ["New players", summary.playersNew],
     ["Fees created", summary.chargesCreated],

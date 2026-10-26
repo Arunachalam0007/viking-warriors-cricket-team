@@ -23,6 +23,7 @@ function duration(start: Date, end: Date | null) {
 const SUMMARY_LABELS: Record<string, string> = {
   matchesSeen: "seen",
   matchesNew: "new",
+  matchesRemoved: "removed",
   scorecardsFetched: "scorecards",
   playersNew: "new players",
   chargesCreated: "fees +",

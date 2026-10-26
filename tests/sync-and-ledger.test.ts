@@ -149,3 +149,49 @@ describe("ledger", () => {
     expect(bal.balance).toBe(30);
   });
 });
+
+describe("Matches deleted on CricHeroes", () => {
+  const listed = () => parseTeamMatches(fixture("team-matches.html"));
+  const fixtureMatch = (id: number) => ({
+    ...listed()[0],
+    matchId: id,
+    status: "upcoming",
+    result: "",
+    winningTeamId: 0,
+    summary: "",
+    startTime: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+  });
+  const sourceWith = (list: () => ReturnType<typeof listed>): SyncSource => ({ ...fixtureSource, teamMatches: async () => list() });
+
+  it("removes an unplayed fixture that was deleted, and keeps the rest", async () => {
+    await runCricheroesSync("manual", sourceWith(() => [fixtureMatch(990001), fixtureMatch(990002), ...listed()]), db);
+    const before = await db.select().from(matches);
+
+    const { summary } = await runCricheroesSync("manual", sourceWith(() => [fixtureMatch(990002), ...listed()]), db);
+    const after = await db.select().from(matches);
+    expect(summary.matchesRemoved).toBe(1);
+    expect(after).toHaveLength(before.length - 1);
+    expect(after.some((m) => m.cricheroesMatchId === 990001)).toBe(false);
+    expect(after.some((m) => m.cricheroesMatchId === 990002)).toBe(true);
+  });
+
+  it("keeps a played match with fees even if it disappears, and warns", async () => {
+    await runCricheroesSync("manual", fixtureSource, db);
+    const all = listed();
+    // Drop the newest played match (inside the dates the page covers)
+    const played = all.find((m) => m.status === "past")!;
+    const { summary } = await runCricheroesSync("manual", sourceWith(() => all.filter((m) => m.matchId !== played.matchId)), db);
+    expect(summary.matchesRemoved).toBe(0);
+    expect(summary.warnings.some((w) => w.includes("was kept"))).toBe(true);
+    const [row] = await db.select().from(matches).where(eq(matches.cricheroesMatchId, played.matchId));
+    expect(row).toBeDefined();
+  });
+
+  it("removes nothing when many matches vanish at once", async () => {
+    const extra = [1, 2, 3, 4, 5, 6].map((i) => fixtureMatch(990100 + i));
+    await runCricheroesSync("manual", sourceWith(() => [...extra, ...listed()]), db);
+    const { summary } = await runCricheroesSync("manual", sourceWith(() => listed()), db);
+    expect(summary.matchesRemoved).toBe(0);
+    expect(summary.warnings.some((w) => w.includes("none removed"))).toBe(true);
+  });
+});

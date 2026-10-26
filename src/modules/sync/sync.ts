@@ -1,8 +1,8 @@
 import "server-only";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, count, eq, gte, inArray, isNotNull, notInArray, or, sql } from "drizzle-orm";
 import { getDb, type DB, type Executor } from "@/db";
-import { matches, matchPlayers, playerMatchStats, players, syncRuns } from "@/db/schema";
-import { istDate } from "@/lib/dates";
+import { charges, matches, matchPlayers, playerMatchStats, players, syncRuns } from "@/db/schema";
+import { formatDate, istDate } from "@/lib/dates";
 import { fetchScorecard, fetchTeamMatches, fetchTeamMembers } from "@/modules/cricheroes/client";
 import type { ChMatchSummary, ChMember, ChScorecard } from "@/modules/cricheroes/types";
 import { extractTeamPerformance } from "@/modules/cricheroes/team-performance";
@@ -29,6 +29,7 @@ export type SyncSummary = {
   matchesSeen: number;
   matchesNew: number;
   matchesUpdated: number;
+  matchesRemoved: number;
   scorecardsFetched: number;
   playersNew: number;
   chargesCreated: number;
@@ -53,6 +54,7 @@ export async function runCricheroesSync(
     matchesSeen: 0,
     matchesNew: 0,
     matchesUpdated: 0,
+    matchesRemoved: 0,
     scorecardsFetched: 0,
     playersNew: 0,
     chargesCreated: 0,
@@ -75,7 +77,8 @@ export async function runCricheroesSync(
     }
 
     // 2. Matches
-    const list = (await source.teamMatches(teamId)).filter((m) => istDate(m.startTime) >= cfg.sync_start_date);
+    const listed = await source.teamMatches(teamId);
+    const list = listed.filter((m) => istDate(m.startTime) >= cfg.sync_start_date);
     summary.matchesSeen = list.length;
 
     for (const m of list) {
@@ -106,6 +109,9 @@ export async function runCricheroesSync(
       summary.chargesRemoved += r.removed;
     }
 
+    // 3. Fixtures deleted on CricHeroes
+    summary.matchesRemoved = await removeDeletedFixtures(db, listed, summary.warnings);
+
     await db
       .update(syncRuns)
       .set({ status: "success", finishedAt: sql`now()`, summary: summary as never })
@@ -125,6 +131,55 @@ function opponentOf(m: ChMatchSummary, teamId: number) {
 }
 function usOf(m: ChMatchSummary, teamId: number) {
   return m.teamA.id === teamId ? m.teamA : m.teamB;
+}
+
+/** More disappearing at once looks like a changed page format rather than real deletions. */
+const MAX_REMOVALS = 5;
+
+/**
+ * Removes matches deleted on CricHeroes. Only fixtures that were never played and carry no fees or
+ * admin edits are removed; anything else is kept and reported as a warning, so money and stats are
+ * never lost to a sync. The matches page lists only the latest matches (older ones are on further
+ * pages), so only matches inside the dates it covers are compared.
+ */
+async function removeDeletedFixtures(db: DB, listed: ChMatchSummary[], warnings: string[]): Promise<number> {
+  if (listed.length === 0) return 0;
+  const oldest = listed.reduce((min, m) => (m.startTime < min ? m.startTime : min), listed[0].startTime);
+  const gone = await db
+    .select()
+    .from(matches)
+    .where(
+      and(
+        isNotNull(matches.cricheroesMatchId),
+        gte(matches.startTime, new Date(oldest)),
+        notInArray(
+          matches.cricheroesMatchId,
+          listed.map((m) => m.matchId),
+        ),
+      ),
+    );
+  if (gone.length > MAX_REMOVALS) {
+    warnings.push(`${gone.length} matches are no longer on CricHeroes — none removed, as that many at once looks like a page change. Check the team link in Settings.`);
+    return 0;
+  }
+
+  let removed = 0;
+  for (const m of gone) {
+    const label = `vs ${m.opponentName} on ${formatDate(m.startTime)}`;
+    const [{ fees }] = await db.select({ fees: count() }).from(charges).where(eq(charges.matchId, m.id));
+    const [{ edits }] = await db
+      .select({ edits: count() })
+      .from(matchPlayers)
+      .where(and(eq(matchPlayers.matchId, m.id), or(eq(matchPlayers.adminLocked, true), eq(matchPlayers.source, "admin"))));
+    if (m.status === "past" || m.financeLocked || fees > 0 || edits > 0) {
+      warnings.push(`Match ${label} is no longer on CricHeroes but was kept (it has scores, fees or admin edits)`);
+      continue;
+    }
+    await db.delete(matches).where(eq(matches.id, m.id));
+    warnings.push(`Removed fixture ${label} — deleted on CricHeroes`);
+    removed++;
+  }
+  return removed;
 }
 
 async function upsertMembers(db: Executor, members: ChMember[]): Promise<number> {
