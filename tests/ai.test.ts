@@ -149,7 +149,6 @@ describe("Public chat", () => {
     expect(chatText("en").suggestions(false, here).some((s) => tamil.test(s))).toBe(false);
     const auto = chatText("auto").suggestions(false, here);
     expect(auto.some((s) => tamil.test(s)) && auto.some((s) => !tamil.test(s))).toBe(true);
-    expect([chatText("ta").micLang, chatText("en").micLang]).toEqual(["ta-IN", "en-IN"]);
     expect(chatText("ta").speechLang("Yogi scored 45")).toBe("ta-IN");
     expect(chatText("auto").speechLang("Yogi scored 45")).toBe("en-IN");
     expect(chatText("auto").speechLang("யோகி 45 ரன்")).toBe("ta-IN");

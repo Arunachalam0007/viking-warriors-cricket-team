@@ -2,16 +2,17 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
-import { Check, Copy, Loader2, Mic, MicOff, RotateCcw, SendHorizontal, Shield, Sparkles, Square, Users, Volume2, X, XCircle } from "lucide-react";
+import { Check, Copy, Loader2, RotateCcw, SendHorizontal, Shield, Sparkles, Square, Users, Volume2, X, XCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "cn";
 import { useStoredChoice } from "@/hooks/use-stored-choice";
 import { CHANGE_TOOLS, type ChatLang, type ChatMessage, type ChatMode, type ChatPreview } from "@/modules/ai/chat-types";
 import { chatText, type ChatText } from "./chat-text";
 import { ChatMarkdown } from "./markdown";
+import { MicButton, useVoiceInput, VoicePanel } from "./voice-input";
 
 /*
  * "AI-Viking-Bot": the floating AI assistant on every page.
@@ -25,7 +26,7 @@ import { ChatMarkdown } from "./markdown";
 const STORE = (mode: ChatMode) => `ask-viking:${mode}`;
 
 /** What the open chat sends with every request; kept outside React so the transport always reads the latest. */
-const context = { lang: "auto" as ChatLang, path: "/" };
+const context = { lang: "ta" as ChatLang, path: "/" };
 
 // Admin and team chats are separate conversations; the mode travels in the chat id
 const transport = new DefaultChatTransport<ChatMessage>({
@@ -56,7 +57,7 @@ function save(mode: ChatMode, messages: ChatMessage[]) {
 export function AskViking({ isAdmin, teamName }: { isAdmin: boolean; teamName: string }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<ChatMode>("public");
-  const [lang, chooseLang] = useStoredChoice<ChatLang>("ask-viking:lang", ["auto", "ta", "en"], "auto");
+  const [lang, chooseLang] = useStoredChoice<ChatLang>("ask-viking:lang", ["ta", "en", "auto"], "ta");
   const [teaser, setTeaser] = useState(false);
 
   // A short "Ask me" bubble once per visit, so people notice the assistant
@@ -289,6 +290,7 @@ function ChatSession(props: {
         onStop={stop}
         busy={busy}
         t={t}
+        lang={lang}
         placeholder={t.placeholder(mode === "admin")}
       />
       <p className="px-4 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] text-center text-[10.5px] text-muted-foreground md:pb-2">
@@ -621,16 +623,69 @@ function ApprovalCard({ name, part, preview, t, onApprove }: { name: string; par
 }
 
 /** Audio made on the server, kept per answer so a replay starts at once. */
-const voiceCache = new Map<string, string>();
-let playing: HTMLAudioElement | null = null;
+/*
+ * Read-aloud plays through one Web Audio context that is unlocked in the tap itself. Phones
+ * (iPhone Safari above all) refuse to start audio that begins after a network wait, so the
+ * context is resumed on the tap and the voice arrives a few seconds later into it.
+ */
+const voiceCache = new Map<string, Promise<AudioBuffer>>();
+
+/** Answer → short parts (sentences, up to ~220 characters) so the first one is ready quickly. */
+function speechParts(text: string) {
+  const pieces = text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .split(/(?<=[.!?।])\s+|\n+/)
+    .map((x) => x.trim())
+    .filter((x) => /[\p{L}\p{N}]/u.test(x) && !/^\|?\s*:?-{2,}/.test(x));
+  const parts: string[] = [];
+  for (const piece of pieces) {
+    const last = parts.at(-1);
+    if (last && last.length + piece.length < 220 && parts.length > 1) parts[parts.length - 1] = `${last} ${piece}`;
+    else parts.push(piece);
+  }
+  return parts.length ? parts : [text];
+}
+
+/** Audio for one part, made on the server and kept for replays. */
+function voiceFor(ctx: AudioContext, part: string, lang: string) {
+  const key = `${lang}:${part}`;
+  let pending = voiceCache.get(key);
+  if (!pending) {
+    pending = fetch("/api/ai/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: part, lang: lang === "ta-IN" ? "ta" : "en" }) })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await res.text());
+        return ctx.decodeAudioData(await res.arrayBuffer());
+      })
+      .catch((e) => {
+        voiceCache.delete(key);
+        throw e;
+      });
+    voiceCache.set(key, pending);
+  }
+  return pending;
+}
+let audioCtx: AudioContext | null = null;
+let playing: { source: AudioBufferSourceNode; stop: () => void } | null = null;
+
+function unlockedAudio() {
+  const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  audioCtx ??= new AC();
+  void audioCtx.resume();
+  // A one-sample silent sound inside the tap fully unlocks iOS
+  const blank = audioCtx.createBufferSource();
+  blank.buffer = audioCtx.createBuffer(1, 1, 22050);
+  blank.connect(audioCtx.destination);
+  blank.start(0);
+  return audioCtx;
+}
 
 function MessageActions({ text, model, last, t }: { text: string; model?: string; last: boolean; t: ChatText }) {
   const [copied, setCopied] = useState(false);
   const [voice, setVoice] = useState<"idle" | "loading" | "playing">("idle");
-  const audio = useRef<HTMLAudioElement | null>(null);
+  const mine = useRef<AudioBufferSourceNode | null>(null);
 
   const stopVoice = () => {
-    audio.current?.pause();
+    if (mine.current && playing?.source === mine.current) playing.stop();
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     setVoice("idle");
   };
@@ -650,39 +705,54 @@ function MessageActions({ text, model, last, t }: { text: string; model?: string
 
   const speak = async () => {
     if (voice !== "idle") return stopVoice();
+    // Must run inside the tap, before any await
+    const ctx = unlockedAudio();
     // தமிழ் → Tamil voice, English → English voice, Auto → the answer's own language
     const lang = t.speechLang(text);
-    const key = `${lang}:${text}`;
     setVoice("loading");
+    playing?.stop();
+    const run = { cancelled: false };
+    const parts = speechParts(text);
+    // All parts are prepared at once; the first one starts playing as soon as it is ready
+    const buffers = parts.map((part) => voiceFor(ctx, part, lang));
     try {
-      let url = voiceCache.get(key);
-      if (!url) {
-        const res = await fetch("/api/ai/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, lang: lang === "ta-IN" ? "ta" : "en" }) });
-        if (!res.ok) throw new Error(await res.text());
-        url = URL.createObjectURL(await res.blob());
-        voiceCache.set(key, url);
+      for (let i = 0; i < buffers.length; i++) {
+        const buffer = await buffers[i];
+        if (run.cancelled) return;
+        await ctx.resume();
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        mine.current = source;
+        playing = {
+          source,
+          stop: () => {
+            run.cancelled = true;
+            try {
+              source.stop();
+            } catch {
+              /* already stopped */
+            }
+          },
+        };
+        const ended = new Promise<void>((resolve) => (source.onended = () => resolve()));
+        source.start();
+        setVoice("playing");
+        await ended;
+        if (run.cancelled) return;
       }
-      playing?.pause();
-      const el = new Audio(url);
-      playing = el;
-      audio.current = el;
-      el.onplaying = () => setVoice("playing");
-      el.onended = () => setVoice("idle");
-      el.onpause = () => setVoice("idle");
-      // A browser that cannot play the file (or blocks it) gets the device voice instead
-      const started = new Promise<void>((resolve, reject) => {
-        el.addEventListener("playing", () => resolve(), { once: true });
-        el.addEventListener("error", () => reject(new Error("cannot play")), { once: true });
-        setTimeout(() => reject(new Error("did not start")), 6000);
-      });
-      await Promise.all([el.play(), started]);
+      setVoice("idle");
     } catch {
-      audio.current?.pause();
-      browserVoice(lang);
+      if (!run.cancelled) browserVoice(lang);
     }
   };
 
-  useEffect(() => () => audio.current?.pause(), []);
+  useEffect(
+    () => () => {
+      if (mine.current && playing?.source === mine.current) playing.stop();
+    },
+    [],
+  );
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }} className={cn("flex items-center gap-1 pl-1 text-muted-foreground", !last && "opacity-0 hover:opacity-100 focus-within:opacity-100")}>
@@ -699,16 +769,29 @@ function MessageActions({ text, model, last, t }: { text: string; model?: string
       >
         {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
       </button>
-      <button
+      <motion.button
         type="button"
         title={voice === "loading" ? t.preparingVoice : voice === "playing" ? t.stopReading : t.readAloud}
         aria-label={voice === "loading" ? t.preparingVoice : voice === "playing" ? t.stopReading : t.readAloud}
         onClick={() => void speak()}
-        className={cn("grid size-7 place-items-center rounded-md hover:bg-muted hover:text-foreground", voice !== "idle" && "text-primary")}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.92 }}
+        className={cn(
+          "listen-button inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ring-1 transition-colors",
+          voice === "idle" ? "bg-primary/8 text-primary ring-primary/25 hover:bg-primary/15" : "team-gradient-x text-white ring-transparent",
+        )}
       >
-        {voice === "loading" ? <Loader2 className="size-3.5 animate-spin" /> : voice === "playing" ? <Square className="size-3 fill-current" /> : <Volume2 className="size-3.5" />}
-      </button>
-      {voice === "playing" && <span className="ask-viking-eq" aria-hidden><i /><i /><i /><i /></span>}
+        {voice === "loading" ? <Loader2 className="size-3.5 animate-spin" /> : voice === "playing" ? <Square className="size-3 fill-current" /> : <Volume2 className="listen-icon size-4" />}
+        {voice === "loading" ? t.preparingVoice : voice === "playing" ? t.stopReading : t.listen}
+        {voice === "playing" && (
+          <span className="ask-viking-eq ask-viking-eq-light" aria-hidden>
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+        )}
+      </motion.button>
       {model && <span className="ml-1 text-[10.5px]">via {model === "gemini" ? "Gemini" : "Groq"}</span>}
     </motion.div>
   );
@@ -729,24 +812,24 @@ function Thinking({ t }: { t: ChatText }) {
 
 /* ---------- Composer ---------- */
 
-const noSubscribe = () => () => {};
-
-type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
-
-function Composer({ value, onChange, onSend, onStop, busy, t, placeholder }: {
-  value: string; onChange: (v: string) => void; onSend: () => void; onStop: () => void; busy: boolean; t: ChatText; placeholder: string;
+function Composer({ value, onChange, onSend, onStop, busy, t, lang, placeholder }: {
+  value: string; onChange: (v: string) => void; onSend: () => void; onStop: () => void; busy: boolean; t: ChatText; lang: ChatLang; placeholder: string;
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
-  const [listening, setListening] = useState(false);
-  const rec = useRef<Recognition | null>(null);
-  const canListen = useSyncExternalStore(
-    noSubscribe,
-    () => {
-      const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
-      return Boolean(w.SpeechRecognition ?? w.webkitSpeechRecognition);
+  const latest = useRef(value);
+  useEffect(() => {
+    latest.current = value;
+  }, [value]);
+
+  // Spoken question → text in the box (the person can correct it before sending)
+  const voice = useVoiceInput({
+    lang,
+    t,
+    onText: (text) => {
+      onChange(latest.current.trim() ? `${latest.current.trimEnd()} ${text}` : text);
+      area.current?.focus({ preventScroll: true });
     },
-    () => false,
-  );
+  });
 
   useEffect(() => {
     area.current?.focus({ preventScroll: true });
@@ -760,27 +843,6 @@ function Composer({ value, onChange, onSend, onStop, busy, t, placeholder }: {
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   }, [value]);
 
-  const toggleMic = useCallback(() => {
-    if (listening) {
-      rec.current?.stop();
-      return;
-    }
-    const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
-    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!Ctor) return;
-    const r = new Ctor();
-    r.lang = t.micLang;
-    r.interimResults = true;
-    r.continuous = false;
-    const before = value ? `${value.trimEnd()} ` : "";
-    r.onresult = (e) => onChange(before + Array.from(e.results, (res) => res[0]!.transcript).join(""));
-    r.onend = () => setListening(false);
-    r.onerror = () => setListening(false);
-    rec.current = r;
-    r.start();
-    setListening(true);
-  }, [t.micLang, listening, onChange, value]);
-
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
@@ -789,58 +851,51 @@ function Composer({ value, onChange, onSend, onStop, busy, t, placeholder }: {
   };
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSend();
-      }}
-      className="shrink-0 px-3 pt-2 sm:px-4"
-    >
-      <div className="flex items-end gap-1.5 rounded-3xl bg-card p-1.5 pl-4 shadow-sm ring-1 ring-foreground/10 transition-shadow focus-within:ring-2 focus-within:ring-primary/40">
-        <textarea
-          ref={area}
-          rows={1}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={onKey}
-          placeholder={listening ? t.listening : placeholder}
-          aria-label="Message"
-          className="max-h-[120px] min-h-9 flex-1 resize-none bg-transparent py-2 text-[15px] outline-none placeholder:text-muted-foreground/80"
-        />
-        {canListen && (
-          <button
-            type="button"
-            onClick={toggleMic}
-            aria-label={listening ? "Stop voice input" : "Speak your question"}
-            className={cn("relative grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground", listening && "text-destructive")}
-          >
-            {listening && <span className="absolute inset-0 animate-ping rounded-full bg-destructive/20" />}
-            {listening ? <MicOff className="size-4.5" /> : <Mic className="size-4.5" />}
-          </button>
-        )}
-        <AnimatePresence mode="popLayout" initial={false}>
-          {busy ? (
-            <motion.button key="stop" type="button" onClick={onStop} aria-label="Stop" className="grid size-9 shrink-0 place-items-center rounded-full bg-foreground text-background" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={SPRING}>
-              <Square className="size-3.5 fill-current" />
-            </motion.button>
-          ) : (
-            <motion.button
-              key="send"
-              type="submit"
-              disabled={!value.trim()}
-              aria-label="Send"
-              className="team-gradient-x grid size-9 shrink-0 place-items-center rounded-full text-white shadow disabled:opacity-40"
-              initial={{ scale: 0, rotate: 90 }}
-              animate={{ scale: 1, rotate: 0 }}
-              exit={{ scale: 0, rotate: -90 }}
-              whileTap={{ scale: 0.88 }}
-              transition={SPRING}
-            >
-              <SendHorizontal className="size-4" />
-            </motion.button>
-          )}
-        </AnimatePresence>
-      </div>
-    </form>
+    <div className="shrink-0">
+      <VoicePanel voice={voice} t={t} />
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSend();
+        }}
+        className="px-3 pt-1 sm:px-4"
+      >
+        <div className="flex items-end gap-1.5 rounded-3xl bg-card p-1.5 pl-4 shadow-sm ring-1 ring-foreground/10 transition-shadow focus-within:ring-2 focus-within:ring-primary/40">
+          <textarea
+            ref={area}
+            rows={1}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={onKey}
+            placeholder={voice.phase === "recording" ? t.listening : placeholder}
+            aria-label="Message"
+            className="max-h-[120px] min-h-10 flex-1 resize-none bg-transparent py-2.5 text-[15px] outline-none placeholder:text-muted-foreground/80"
+          />
+          <MicButton voice={voice} t={t} />
+          <AnimatePresence mode="popLayout" initial={false}>
+            {busy ? (
+              <motion.button key="stop" type="button" onClick={onStop} aria-label="Stop" className="grid size-10 shrink-0 place-items-center rounded-full bg-foreground text-background" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={SPRING}>
+                <Square className="size-3.5 fill-current" />
+              </motion.button>
+            ) : (
+              <motion.button
+                key="send"
+                type="submit"
+                disabled={!value.trim()}
+                aria-label="Send"
+                className="team-gradient-x grid size-10 shrink-0 place-items-center rounded-full text-white shadow disabled:opacity-40"
+                initial={{ scale: 0, rotate: 90 }}
+                animate={{ scale: 1, rotate: 0 }}
+                exit={{ scale: 0, rotate: -90 }}
+                whileTap={{ scale: 0.88 }}
+                transition={SPRING}
+              >
+                <SendHorizontal className="size-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+      </form>
+    </div>
   );
 }

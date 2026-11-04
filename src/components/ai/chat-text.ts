@@ -52,8 +52,23 @@ type Strings = {
   fetching: (tool?: string) => string;
   loaderHint: string;
   preparingVoice: string;
-  /** Speech recognition language for the mic */
-  micLang: string;
+  /** Short label on the read-aloud button */
+  listen: string;
+  mic: {
+    speak: string;
+    stop: string;
+    done: string;
+    cancel: string;
+    askTitle: string;
+    askBody: string;
+    allow: string;
+    notNow: string;
+    transcribing: string;
+    nothing: string;
+    deniedTitle: string;
+    deniedHelp: string;
+    unsupported: string;
+  };
   /** Read-aloud language for an answer */
   speechLang: (text: string) => string;
 };
@@ -102,7 +117,22 @@ const TA: Strings = {
   fetching: (tool) => (tool ? `${tool}…` : "தகவல்களை சேகரிக்கிறது…"),
   loaderHint: "அணியின் data-வில் இருந்து பதில் தயாராகிறது",
   preparingVoice: "குரல் தயாராகிறது…",
-  micLang: "ta-IN",
+  listen: "கேளுங்க",
+  mic: {
+    speak: "பேசி கேளுங்க",
+    stop: "நிறுத்து",
+    done: "முடிந்தது",
+    cancel: "ரத்து",
+    askTitle: "🎤 Microphone அனுமதி வேண்டும்",
+    askBody: "உங்கள் கேள்வியை பேசினால், AI-Viking-Bot அதை எழுத்தாக மாற்றும். அடுத்து வரும் browser கேள்விக்கு “Allow” கொடுங்க.",
+    allow: "அனுமதி கொடு",
+    notNow: "இப்போது வேண்டாம்",
+    transcribing: "உங்கள் குரலை எழுத்தாக மாற்றுகிறது…",
+    nothing: "சரியாக கேட்கவில்லை. மீண்டும் பேசுங்க.",
+    deniedTitle: "Microphone தடுக்கப்பட்டுள்ளது",
+    deniedHelp: "iPhone Safari: முகவரி பட்டியில் “aA” → Website Settings → Microphone → Allow. Android Chrome: 🔒 → Permissions → Microphone → Allow. பிறகு மீண்டும் 🎤 அழுத்துங்க.",
+    unsupported: "இந்த browser-ல் voice வேலை செய்யாது. Chrome அல்லது Safari பயன்படுத்துங்க.",
+  },
   speechLang: () => "ta-IN",
 };
 
@@ -129,7 +159,22 @@ const EN: Strings = {
   fetching: (tool) => (tool ? `${tool}…` : "Fetching team data…"),
   loaderHint: "Preparing your answer from the team data",
   preparingVoice: "Preparing voice…",
-  micLang: "en-IN",
+  listen: "Listen",
+  mic: {
+    speak: "Ask by voice",
+    stop: "Stop",
+    done: "Done",
+    cancel: "Cancel",
+    askTitle: "🎤 Allow the microphone",
+    askBody: "Speak your question and AI-Viking-Bot types it for you. Tap “Allow” on the browser's question that comes next.",
+    allow: "Allow microphone",
+    notNow: "Not now",
+    transcribing: "Turning your voice into text…",
+    nothing: "Didn't catch that. Please try again.",
+    deniedTitle: "The microphone is blocked",
+    deniedHelp: "iPhone Safari: tap “aA” in the address bar → Website Settings → Microphone → Allow. Android Chrome: tap 🔒 → Permissions → Microphone → Allow. Then tap 🎤 again.",
+    unsupported: "Voice input doesn't work in this browser. Please use Chrome or Safari.",
+  },
   speechLang: () => "en-IN",
 };
 
@@ -146,9 +191,8 @@ const AUTO: Strings = {
   },
   placeholder: (admin) => `${EN.placeholder(admin)} (தமிழ் OK)`,
   listening: "Listening… பேசுங்க",
+  listen: "Listen / கேளுங்க",
   fetching: (tool) => (tool ? `${tool}…` : "Fetching data… தகவல் சேகரிக்கிறது"),
-  // Tamil recognition also catches the English cricket words people mix in
-  micLang: "ta-IN",
   speechLang: (text) => (isTamil(text) ? "ta-IN" : "en-IN"),
 };
 
