@@ -9,6 +9,8 @@ import { rupees } from "@/lib/format";
 import { listCashHolders, listPayments } from "@/modules/admin/queries";
 import { getPlayerBalances } from "@/modules/finance/queries";
 import { requireAdmin } from "@/lib/auth";
+import { configuredProviders } from "@/modules/ai/models";
+import { getSetting } from "@/modules/settings/settings";
 
 export const metadata: Metadata = { title: "Payments" };
 
@@ -16,7 +18,7 @@ export default async function PaymentsPage() {
   // Layouts and pages render in parallel, so each admin page must check on its own.
   await requireAdmin();
   const db = getDb();
-  const [balances, holders, payments] = await Promise.all([getPlayerBalances(db), listCashHolders(db), listPayments(db)]);
+  const [balances, holders, payments, aiEnabled] = await Promise.all([getPlayerBalances(db), listCashHolders(db), listPayments(db), getSetting("ai_enabled", db)]);
   const due = balances.reduce((s, b) => s + Math.max(b.balance, 0), 0);
   const credit = balances.reduce((s, b) => s + Math.max(-b.balance, 0), 0);
   const collected = balances.reduce((s, b) => s + b.paid, 0);
@@ -43,6 +45,7 @@ export default async function PaymentsPage() {
         }))}
         holders={holders.filter((h) => h.isActive).map((h) => ({ id: h.id, name: h.name, isDefault: h.isDefault }))}
         today={todayIst()}
+        aiScan={aiEnabled && configuredProviders().length > 0}
       />
 
       <Card>

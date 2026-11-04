@@ -1,4 +1,5 @@
-import { Download } from "lucide-react";
+import { DataChecksCard } from "@/components/admin/ai/data-checks";
+import { ChevronRight, Download, MessageCircle } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RevenueChart } from "@/components/admin/ops/revenue-chart";
@@ -13,6 +14,7 @@ import { getDb } from "@/db";
 import { formatMonth } from "@/lib/dates";
 import { rupees } from "@/lib/format";
 import { lastSuccessfulSync } from "@/modules/admin/queries";
+import { remindersDue } from "@/modules/ai/reminders";
 import { getPlayerBalances, getRevenueSummary } from "@/modules/finance/queries";
 import { requireAdmin } from "@/lib/auth";
 
@@ -22,11 +24,12 @@ export default async function AdminOverviewPage() {
   // Layouts and pages render in parallel, so each admin page must check on its own.
   await requireAdmin();
   const db = getDb();
-  const [revenue, balances, chSync, sheetSync] = await Promise.all([
+  const [revenue, balances, chSync, sheetSync, reminders] = await Promise.all([
     getRevenueSummary(db),
     getPlayerBalances(db),
     lastSuccessfulSync(db, "cricheroes"),
     lastSuccessfulSync(db, "sheets"),
+    remindersDue(db),
   ]);
   const owing = balances.filter((b) => b.balance > 0).sort((a, b) => b.balance - a.balance).slice(0, 10);
   const chart = revenue.monthly.map((m) => ({ ...m, label: formatMonth(m.month, true) }));
@@ -57,6 +60,18 @@ export default async function AdminOverviewPage() {
         <StatTile label="Expenses" value={rupees(revenue.expenses)} hint="Balls, grounds, kit…" />
         <StatTile label="Cash in hand" value={rupees(inHand)} hint="Across all holders" />
       </section>
+
+      {reminders.due && (
+        <Link href="/admin/reminders" className="flex items-center gap-3 rounded-xl bg-warning/10 px-4 py-3 text-sm ring-1 ring-warning/30 hover:bg-warning/15">
+          <MessageCircle className="size-5 shrink-0 text-warning" />
+          <span className="flex-1">
+            <b>Dues reminders not sent this week.</b> {reminders.owing} player{reminders.owing === 1 ? " owes" : "s owe"} match fees — send the WhatsApp reminders.
+          </span>
+          <ChevronRight className="size-4 shrink-0" />
+        </Link>
+      )}
+
+      <DataChecksCard db={db} compact />
 
       <Card>
         <CardHeader>

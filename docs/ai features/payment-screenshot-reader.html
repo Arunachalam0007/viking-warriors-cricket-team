@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Payment screenshot reader · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="../pages/dashboard.html">Dashboard</a></li><li><a href="../pages/players.html">Players</a></li><li><a href="../pages/player-profile.html">Player profile</a></li><li><a href="../pages/leaderboard.html">Leaderboard</a></li><li><a href="../pages/matches.html">Matches</a></li><li><a href="../pages/match-detail.html">Match detail</a></li><li><a href="../pages/finance.html">Finance</a></li><li><a href="../pages/reports.html">Reports</a></li><li><a href="../pages/login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="../pages/admin-overview.html">Revenue overview</a></li><li><a href="../pages/admin-match-fees.html">Match fees</a></li><li><a href="../pages/admin-payments.html">Payments</a></li><li><a href="../pages/admin-collections.html">Collections</a></li><li><a href="../pages/admin-expenses.html">Expenses &amp; income</a></li><li><a href="../pages/admin-players.html">Manage players</a></li><li><a href="../pages/admin-sync.html">Sync &amp; logs</a></li><li><a href="../pages/admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="../pages/feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="../pages/feature-finance-ledger.html">Finance ledger</a></li><li><a href="../pages/feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="../pages/feature-excel-export.html">Excel export</a></li><li><a href="../pages/feature-nightly-cron.html">Nightly cron</a></li><li><a href="../pages/feature-auth-security.html">Auth &amp; security</a></li></ul><h4>AI features</h4><ul><li><a href="ai-overview.html">AI architecture (overview)</a></li><li><a href="ai-provider-fallback.html">Gemini ⇄ Groq fallback</a></li><li><a href="ai-viking-bot.html">AI-Viking-Bot chatbot</a></li><li><a href="match-summaries.html">AI match reports</a></li><li><a href="performer-writeups.html">Performer write-ups</a></li><li><a href="player-form-insights.html">Player form notes</a></li><li><a href="admin-finance-assistant.html">Admin finance assistant</a></li><li><a href="plain-language-admin-edits.html">Plain-language admin edits</a></li><li><a href="payment-screenshot-reader.html" aria-current="page">Payment screenshot reader</a></li><li><a href="dues-reminder-drafts.html">Dues reminder drafts</a></li><li><a href="post-sync-checks.html">Post-sync data checks</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">AI feature</div>
+<h1>Payment screenshot reader</h1>
+<p class="lede">Admins upload or paste a GPay / PhonePe / Paytm / bank screenshot; the AI reads amount, date, payer and UPI reference, guesses the player, and fills the Record-payment form.</p>
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill read">read</span> Admins: Admin → Payments → <b>Scan screenshot</b>. Nothing is saved until the admin presses Record payment as usual. The image is not stored.</p></section><section><h2>Flow</h2><div class="frame"><pre class="mermaid">
+flowchart LR
+  U[Choose / drop / paste screenshot] --&gt; Z[Browser shrinks it: max 1600 px JPEG]
+  Z --&gt; A["scanPaymentScreenshot (server action, admin only)"]
+  A --&gt; V["generateText + image + Output.object (vision chain: Gemini models first)"]
+  V --&gt; X[amount, date, app, payer, payee, reference, status, matched player]
+  X --&gt; C[Checks: failed / pending, paise rounding, future date, duplicate reference, guest, already paid up]
+  C --&gt; D[Dialog: details + warnings]
+  D -- Use these details --&gt; F[Record payment form filled]
+  F -- admin presses Record payment --&gt; P[(payments + allocations)]
+</pre></div></section><section><h2>What the checks warn about</h2><ul><li>Status FAILED or PENDING on the screenshot.</li><li>Amount with paise (rounded to whole rupees).</li><li>No clear player match, or only a medium / low confidence one.</li><li>The player is a guest (guests are not charged).</li><li>The same UPI reference is already recorded (possible duplicate).</li><li>The player owes nothing (the money would become advance credit).</li></ul></section><section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>players.name</code>, <code>players.ch_name</code></td><td>Matching the payer</td><td><span class="pill read">read</span></td></tr><tr><td><code>payments.reference</code></td><td>Duplicate check</td><td><span class="pill read">read</span></td></tr><tr><td><code>ai_usage</code> (feature <code>payment_scan</code>)</td><td>Log</td><td><span class="pill write">write</span></td></tr></tbody></table></div></section><section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/modules/ai/scan.ts</code></td><td><code>scanPaymentImage()</code>: prompt, schema, checks</td></tr><tr><td><code>src/modules/ai/actions.ts</code></td><td><code>scanPaymentScreenshot()</code>: admin check, image type / size (≤ 4 MB)</td></tr><tr><td><code>src/components/admin/ai/payment-scan.tsx</code></td><td>Button, dialog, resize, paste / drop, scanning animation</td></tr><tr><td><code>src/components/admin/finance/payments-workspace.tsx</code></td><td>Fills the form</td></tr><tr><td><code>next.config.ts</code></td><td><code>serverActions.bodySizeLimit: 5mb</code></td></tr></tbody></table></div></section>
+<div class="pager"><a href="plain-language-admin-edits.html">← Plain-language admin edits</a><a href="dues-reminder-drafts.html">Dues reminder drafts →</a></div>
+<footer class="foot">Viking Warriors Team Portal · AI documentation, written from the code in <code>src/modules/ai/</code>.</footer>
+</div>
+</main>
+</div>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, securityLevel: "strict", theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
+</script>
+</body>
+</html>

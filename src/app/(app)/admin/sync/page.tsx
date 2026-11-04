@@ -1,3 +1,4 @@
+import { DataChecksCard } from "@/components/admin/ai/data-checks";
 import type { Metadata } from "next";
 import { RebuildSheetButton, SyncNowButton } from "@/components/admin/ops/sync-buttons";
 import { AutoRefreshWhile } from "@/components/admin/ops/auto-refresh";
@@ -97,6 +98,8 @@ export default async function SyncPage() {
           </CardContent>
         </Card>
       </div>
+
+      <DataChecksCard db={db} />
 
       <Card className="min-w-0">
         <CardHeader>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gemini ⇄ Groq fallback · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="../pages/dashboard.html">Dashboard</a></li><li><a href="../pages/players.html">Players</a></li><li><a href="../pages/player-profile.html">Player profile</a></li><li><a href="../pages/leaderboard.html">Leaderboard</a></li><li><a href="../pages/matches.html">Matches</a></li><li><a href="../pages/match-detail.html">Match detail</a></li><li><a href="../pages/finance.html">Finance</a></li><li><a href="../pages/reports.html">Reports</a></li><li><a href="../pages/login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="../pages/admin-overview.html">Revenue overview</a></li><li><a href="../pages/admin-match-fees.html">Match fees</a></li><li><a href="../pages/admin-payments.html">Payments</a></li><li><a href="../pages/admin-collections.html">Collections</a></li><li><a href="../pages/admin-expenses.html">Expenses &amp; income</a></li><li><a href="../pages/admin-players.html">Manage players</a></li><li><a href="../pages/admin-sync.html">Sync &amp; logs</a></li><li><a href="../pages/admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="../pages/feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="../pages/feature-finance-ledger.html">Finance ledger</a></li><li><a href="../pages/feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="../pages/feature-excel-export.html">Excel export</a></li><li><a href="../pages/feature-nightly-cron.html">Nightly cron</a></li><li><a href="../pages/feature-auth-security.html">Auth &amp; security</a></li></ul><h4>AI features</h4><ul><li><a href="ai-overview.html">AI architecture (overview)</a></li><li><a href="ai-provider-fallback.html" aria-current="page">Gemini ⇄ Groq fallback</a></li><li><a href="ai-viking-bot.html">AI-Viking-Bot chatbot</a></li><li><a href="match-summaries.html">AI match reports</a></li><li><a href="performer-writeups.html">Performer write-ups</a></li><li><a href="player-form-insights.html">Player form notes</a></li><li><a href="admin-finance-assistant.html">Admin finance assistant</a></li><li><a href="plain-language-admin-edits.html">Plain-language admin edits</a></li><li><a href="payment-screenshot-reader.html">Payment screenshot reader</a></li><li><a href="dues-reminder-drafts.html">Dues reminder drafts</a></li><li><a href="post-sync-checks.html">Post-sync data checks</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">AI feature</div>
+<h1>Gemini ⇄ Groq fallback</h1>
+<p class="lede">Every AI call goes to the admin's first provider; if it is out of quota, busy, failing or silent, the same call is answered by the other provider. It works both ways.</p>
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill read">read</span> Admin → AI shows the providers, which models are resting, calls per provider today, and the last switches. Admins choose which provider is tried first.</p></section><section><h2>How a call is answered</h2><div class="frame"><pre class="mermaid">
+sequenceDiagram
+  participant F as Feature (chat / job / scan)
+  participant M as fallbackModel
+  participant G as Gemini model
+  participant Q as Groq model
+  F-&gt;&gt;M: generateText / streamText
+  M-&gt;&gt;G: request (timer 15 s stream / 45 s generate)
+  alt answers
+    G--&gt;&gt;M: first text or tool call
+    M--&gt;&gt;F: stream (response.modelId = Gemini model)
+  else 429 quota / 5xx / stall / bad key
+    G--xM: error
+    M-&gt;&gt;M: rest that model, log ai_usage (ok = false)
+    M-&gt;&gt;Q: same request
+    Q--&gt;&gt;M: answer
+    M--&gt;&gt;F: stream (response.modelId = Groq model)
+  end
+</pre></div></section><section><h2>Model chains</h2><div class="table-wrap"><table><thead><tr><th>Tier</th><th>Used by</th><th>Order when Gemini is first</th></tr></thead><tbody><tr><td><b>chat</b></td><td>AI-Viking-Bot (team + admin), reminder drafts</td><td>gemini-3.5-flash → gpt-oss-120b → gemini-3.5-flash-lite → gpt-oss-20b → gemini-3.1-flash-lite → qwen3.8-27b → gemini-3-flash-preview → gemma-4-26b</td></tr><tr><td><b>bulk</b></td><td>Match reports, write-ups, form notes, data-check summary</td><td>gemini-3.5-flash-lite → gpt-oss-120b → gemini-3.1-flash-lite → gpt-oss-20b → gemini-3-flash-preview → qwen3.8-27b → gemini-3.5-flash → gemma-4-26b</td></tr><tr><td><b>vision</b></td><td>Payment screenshot reader</td><td>gemini-3.5-flash → gemini-3.5-flash-lite → gemini-3.1-flash-lite → gemma-4-26b → qwen3.8-27b (Groq last: weaker at reading images)</td></tr></tbody></table></div><p>“Groq first” in Admin → AI swaps the order (Groq's model, then Gemini's, …). Models that are resting move to the end of the list but are still tried if nothing else works.</p></section><section><h2>Rest times</h2><div class="table-wrap"><table><thead><tr><th>Error</th><th>Rest</th></tr></thead><tbody><tr><td>429 / quota / rate limit (per minute)</td><td>60 s</td></tr><tr><td>Daily quota (“per day”)</td><td>3 h (Google resets at midnight US Pacific)</td></tr><tr><td>401 / 403 (wrong or revoked key)</td><td>10 min</td></tr><tr><td>404 (model retired)</td><td>24 h</td></tr><tr><td>5xx, “high demand”, no answer within 15 s (stream) / 45 s (generate)</td><td>30 s</td></tr><tr><td>400 (bad request)</td><td>no rest: the problem is the call, the next model still tries it</td></tr></tbody></table></div><p>Rest state is kept in memory per server instance (Vercel may run several); the usage log in the database is what Admin → AI's numbers come from.</p></section><section><h2>Why stream answers wait for the first word</h2><p>Providers report quota and overload errors when the request starts, and Gemini sometimes accepts a request and then sends nothing. <code>doStream</code> reads the stream until the first real part (text, tool call or finish) before handing it on; until then, any error or the 15-second timer moves the call to the next model, so the visitor never sees a half answer from a failing provider. Pressing Stop aborts the call and does not try another model.</p></section><section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>ai_usage.*</code></td><td>Every attempt: feature, provider, model, ok, tokens, error</td><td><span class="pill write">write</span></td></tr><tr><td><code>settings.ai_primary_provider</code></td><td>gemini | groq</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section><section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/modules/ai/models.ts</code></td><td><code>CHAINS</code>, <code>callOrder()</code>, <code>restFor()</code>, <code>fallbackModel()</code>, <code>aiModel(feature)</code>, <code>providerHealth()</code></td></tr><tr><td><code>src/app/(app)/admin/ai/page.tsx</code></td><td>Provider status, usage, settings</td></tr><tr><td><code>tests/ai.test.ts</code></td><td>Order, rest times, quota fallback, stall fallback</td></tr></tbody></table></div></section><section><h2>How to test</h2><ul><li>Break one key on purpose: <code>GEMINI_API_KEY=x npm run ai:jobs -- 1</code> → the text is written by Groq; <code>ai_usage</code> shows a failed Gemini row then an ok Groq row.</li><li>Set “Groq first” in Admin → AI and ask AI-Viking-Bot anything: the answer shows “via Groq”.</li></ul></section>
+<div class="pager"><a href="ai-overview.html">← AI architecture (overview)</a><a href="ai-viking-bot.html">AI-Viking-Bot chatbot →</a></div>
+<footer class="foot">Viking Warriors Team Portal · AI documentation, written from the code in <code>src/modules/ai/</code>.</footer>
+</div>
+</main>
+</div>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, securityLevel: "strict", theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
+</script>
+</body>
+</html>

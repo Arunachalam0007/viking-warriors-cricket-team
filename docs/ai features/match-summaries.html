@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI match reports · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="../pages/dashboard.html">Dashboard</a></li><li><a href="../pages/players.html">Players</a></li><li><a href="../pages/player-profile.html">Player profile</a></li><li><a href="../pages/leaderboard.html">Leaderboard</a></li><li><a href="../pages/matches.html">Matches</a></li><li><a href="../pages/match-detail.html">Match detail</a></li><li><a href="../pages/finance.html">Finance</a></li><li><a href="../pages/reports.html">Reports</a></li><li><a href="../pages/login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="../pages/admin-overview.html">Revenue overview</a></li><li><a href="../pages/admin-match-fees.html">Match fees</a></li><li><a href="../pages/admin-payments.html">Payments</a></li><li><a href="../pages/admin-collections.html">Collections</a></li><li><a href="../pages/admin-expenses.html">Expenses &amp; income</a></li><li><a href="../pages/admin-players.html">Manage players</a></li><li><a href="../pages/admin-sync.html">Sync &amp; logs</a></li><li><a href="../pages/admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="../pages/feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="../pages/feature-finance-ledger.html">Finance ledger</a></li><li><a href="../pages/feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="../pages/feature-excel-export.html">Excel export</a></li><li><a href="../pages/feature-nightly-cron.html">Nightly cron</a></li><li><a href="../pages/feature-auth-security.html">Auth &amp; security</a></li></ul><h4>AI features</h4><ul><li><a href="ai-overview.html">AI architecture (overview)</a></li><li><a href="ai-provider-fallback.html">Gemini ⇄ Groq fallback</a></li><li><a href="ai-viking-bot.html">AI-Viking-Bot chatbot</a></li><li><a href="match-summaries.html" aria-current="page">AI match reports</a></li><li><a href="performer-writeups.html">Performer write-ups</a></li><li><a href="player-form-insights.html">Player form notes</a></li><li><a href="admin-finance-assistant.html">Admin finance assistant</a></li><li><a href="plain-language-admin-edits.html">Plain-language admin edits</a></li><li><a href="payment-screenshot-reader.html">Payment screenshot reader</a></li><li><a href="dues-reminder-drafts.html">Dues reminder drafts</a></li><li><a href="post-sync-checks.html">Post-sync data checks</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">AI feature</div>
+<h1>AI match reports</h1>
+<p class="lede">A short, lively report of every played match, in Tamil and English, ready to paste into the team WhatsApp group.</p>
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill read">read</span> Everyone sees it on <b>the match page</b> as a card with a Tamil / English switch (Tamil first, choice remembered) and a Copy-for-WhatsApp button. Admins can edit, hide or rewrite it in Admin → AI.</p></section><section><h2>How it is written</h2><div class="frame"><pre class="mermaid">
+flowchart LR
+  T["Trigger: sync helper after each sync · nightly cron (8 texts) · Admin → AI 'Update now' · npm run ai:jobs"] --&gt; J["runAiJobs()"]
+  J --&gt; F["matchFacts(matchId) (facts.ts)"]
+  F --&gt; H{"facts hash changed? edited?"}
+  H -- "new or changed, not edited" --&gt; G["generateText + Output.object (bulk chain)"]
+  G --&gt; S[("ai_content: match_summary, match id, ta + en")]
+  H -- "same facts or admin-edited" --&gt; K[skip]
+  S --&gt; P["the match page reads it (no AI call on page view)"]
+</pre></div><ol class="steps"><li><div>Facts: date, opponent, type, ground, overs, result, both scores, player of the match, batting (runs, balls, 4s, 6s, dismissal), bowling (overs, wickets, runs, maidens), fielding, top-3 MVP.</div></li><li><div>Brief: “70–110 words: result first, then standout batting and bowling with exact figures and the player of the match.”</div></li><li><div>One call writes the English and Tamil versions (structured output: title_en, body_en, title_ta, body_ta). Team name: Viking Warriors in English, வைகிங் வாரியர்ஸ் in Tamil.</div></li><li><div>Both rows are upserted with the facts hash, provider and model; an admin-edited row is left alone (<code>setWhere edited = false</code>).</div></li></ol></section><section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table.column</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td><code>ai_content</code> (kind = <code>match_summary</code>, subject_id = match id)</td><td>Title and text per language, facts hash, model, edited, hidden</td><td><span class="pill write">write</span></td></tr><tr><td>matches, player_match_stats, match_players, players</td><td>Facts</td><td><span class="pill read">read</span></td></tr></tbody></table></div></section><section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/modules/ai/facts.ts</code></td><td><code>matchFacts(matchId)</code></td></tr><tr><td><code>src/modules/ai/generate.ts</code></td><td><code>BRIEFS</code>, <code>writeBilingual()</code>, <code>runAiJobs()</code>, <code>generateOne()</code></td></tr><tr><td><code>src/modules/ai/content.ts</code></td><td><code>getAiTexts()</code>, <code>saveAiText()</code>, <code>factsHash()</code></td></tr><tr><td><code>src/components/ai/ai-text-card.tsx</code></td><td>The card (language switch, copy)</td></tr><tr><td><code>src/components/admin/ai/ai-admin.tsx</code></td><td>Edit / hide / write again</td></tr></tbody></table></div></section><section><h2>Rules and edge cases</h2><ul><li>Written only from facts; the prompt forbids invented numbers.</li><li>A corrected scorecard changes the facts hash, so the text is rewritten at the next run.</li><li>Hidden texts are not shown anywhere; “Write again” releases an admin edit and rewrites it.</li><li>A run writes at most 25 texts (8 on Vercel within 35 s); the rest follow next time.</li></ul></section>
+<div class="pager"><a href="ai-viking-bot.html">← AI-Viking-Bot chatbot</a><a href="performer-writeups.html">Performer write-ups →</a></div>
+<footer class="foot">Viking Warriors Team Portal · AI documentation, written from the code in <code>src/modules/ai/</code>.</footer>
+</div>
+</main>
+</div>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, securityLevel: "strict", theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
+</script>
+</body>
+</html>

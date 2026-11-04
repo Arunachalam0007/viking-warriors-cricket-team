@@ -110,3 +110,29 @@ export const resetPlayerPhoto = adminAction(
   },
   { syncSheet: false },
 );
+
+/** Phone numbers for many players at once (Dues reminders page). Empty clears a number. */
+export const savePlayerPhones = adminAction(
+  z.object({
+    items: z
+      .array(
+        z.object({
+          playerId: z.uuid(),
+          phone: z
+            .string()
+            .trim()
+            .transform((v) => (v.startsWith("+") ? "+" : "") + v.replace(/\D/g, ""))
+            .refine((v) => v === "" || /^\+?\d{10,13}$/.test(v), "Each number needs 10 digits (country code optional)"),
+        }),
+      )
+      .max(200),
+  }),
+  async ({ items }, { tx, actor }) => {
+    for (const { playerId, phone } of items) {
+      await tx.update(players).set({ phone: phone || null, updatedAt: sql`now()` }).where(eq(players.id, playerId));
+    }
+    await audit({ actor, action: "player.phones", entity: "player", after: { count: items.length } }, tx);
+    return items.length;
+  },
+  { syncSheet: false },
+);

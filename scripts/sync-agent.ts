@@ -3,7 +3,8 @@
  * home connection, so this runs on the team's Mac and does the syncing the live site cannot:
  *   - "Sync CricHeroes now" clicks on the live site (queued in sync_runs), within ~30 seconds
  *   - the nightly 23:30 IST sync, or as soon as the Mac wakes if it was asleep then
- * Each sync is followed by a Google Sheet rebuild, as on the live site.
+ * Each sync is followed by a Google Sheet rebuild, as on the live site, and the AI texts (match
+ * reports, write-ups, form notes, data-check summary) are brought up to date.
  *
  *   npm run sync:agent            keep running (what launchd starts; see scripts/sync-agent/)
  *   npm run sync:agent -- --once  one check, then exit
@@ -21,6 +22,7 @@ async function main() {
   const queue = await import("@/modules/sync/queue");
   const { runCricheroesSync } = await import("@/modules/sync/sync");
   const { syncSheet } = await import("@/modules/sheets/sheets");
+  const { runAiJobs } = await import("@/modules/ai/generate");
   const db = getDb();
 
   async function sync(trigger: "manual" | "cron", queuedRunId?: number) {
@@ -32,6 +34,8 @@ async function main() {
     }
     const sheets = await syncSheet(trigger, db).catch((e: Error) => ({ status: "failed", reason: e.message }));
     log("Google Sheet:", sheets.status, "reason" in sheets && sheets.reason ? sheets.reason : "");
+    const ai = await runAiJobs(db).catch((e: Error) => ({ error: e.message }));
+    log("AI texts:", "error" in ai ? `failed: ${ai.error}` : `${ai.written} written, ${ai.failed} failed${ai.stoppedAtLimit ? " (more next time)" : ""}`);
   }
 
   async function check() {

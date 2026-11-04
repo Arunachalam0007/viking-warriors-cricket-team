@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Post-sync data checks · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="../pages/dashboard.html">Dashboard</a></li><li><a href="../pages/players.html">Players</a></li><li><a href="../pages/player-profile.html">Player profile</a></li><li><a href="../pages/leaderboard.html">Leaderboard</a></li><li><a href="../pages/matches.html">Matches</a></li><li><a href="../pages/match-detail.html">Match detail</a></li><li><a href="../pages/finance.html">Finance</a></li><li><a href="../pages/reports.html">Reports</a></li><li><a href="../pages/login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="../pages/admin-overview.html">Revenue overview</a></li><li><a href="../pages/admin-match-fees.html">Match fees</a></li><li><a href="../pages/admin-payments.html">Payments</a></li><li><a href="../pages/admin-collections.html">Collections</a></li><li><a href="../pages/admin-expenses.html">Expenses &amp; income</a></li><li><a href="../pages/admin-players.html">Manage players</a></li><li><a href="../pages/admin-sync.html">Sync &amp; logs</a></li><li><a href="../pages/admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="../pages/feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="../pages/feature-finance-ledger.html">Finance ledger</a></li><li><a href="../pages/feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="../pages/feature-excel-export.html">Excel export</a></li><li><a href="../pages/feature-nightly-cron.html">Nightly cron</a></li><li><a href="../pages/feature-auth-security.html">Auth &amp; security</a></li></ul><h4>AI features</h4><ul><li><a href="ai-overview.html">AI architecture (overview)</a></li><li><a href="ai-provider-fallback.html">Gemini ⇄ Groq fallback</a></li><li><a href="ai-viking-bot.html">AI-Viking-Bot chatbot</a></li><li><a href="match-summaries.html">AI match reports</a></li><li><a href="performer-writeups.html">Performer write-ups</a></li><li><a href="player-form-insights.html">Player form notes</a></li><li><a href="admin-finance-assistant.html">Admin finance assistant</a></li><li><a href="plain-language-admin-edits.html">Plain-language admin edits</a></li><li><a href="payment-screenshot-reader.html">Payment screenshot reader</a></li><li><a href="dues-reminder-drafts.html">Dues reminder drafts</a></li><li><a href="post-sync-checks.html" aria-current="page">Post-sync data checks</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">AI feature</div>
+<h1>Post-sync data checks</h1>
+<p class="lede">Exact, rule-based checks of the data after each sync, with a short AI summary of what to look at first.</p>
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill read">read</span> Admins: full list on Admin → <b>Sync &amp; logs</b>; warnings only on <b>Revenue overview</b>. Each row links to the page where it is fixed. The checks run on every page view (no AI); the AI only writes the summary paragraph.</p></section><section><h2>Checks</h2><div class="table-wrap"><table><thead><tr><th>Check</th><th>Severity</th><th>Fix it in</th></tr></thead><tbody><tr><td>Fixture dated before today but never scored</td><td>info</td><td>CricHeroes (score or delete); the next sync updates it</td></tr><tr><td>Played match with no players recorded</td><td>warn</td><td>Match fees → the match</td></tr><tr><td>Members who played ≠ match fees charged (chargeable matches without any waived / edited fee)</td><td>warn</td><td>Match fees → the match</td></tr><tr><td>Guest who played 3+ matches this season</td><td>info</td><td>Manage players → mark as member</td></tr><tr><td>Two players with the same name</td><td>info</td><td>Manage players</td></tr><tr><td>Members owing 6 × match fee or more</td><td>info</td><td>Dues reminders</td></tr><tr><td>Last CricHeroes sync failed / had warnings</td><td>warn / info</td><td>Sync &amp; logs</td></tr></tbody></table></div></section><section><h2>Flow</h2><div class="frame"><pre class="mermaid">
+flowchart LR
+  S[Sync helper: CricHeroes sync] --&gt; J["runAiJobs()"]
+  J --&gt; K["runSyncChecks() (checks.ts)"]
+  K -- "checks changed" --&gt; G["AI summary (bulk chain) → ai_content sync_check/latest"]
+  P[Admin → Sync &amp; logs] --&gt; K2["runSyncChecks() live"]
+  P --&gt; T[(ai_content summary)]
+</pre></div></section><section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td>matches, match_players, players, charges, payments, sync_runs</td><td>Checks</td><td><span class="pill read">read</span></td></tr><tr><td><code>ai_content</code> (kind <code>sync_check</code>, subject <code>latest</code>)</td><td>Summary</td><td><span class="pill write">write</span></td></tr></tbody></table></div></section><section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/modules/ai/checks.ts</code></td><td><code>runSyncChecks()</code></td></tr><tr><td><code>src/components/admin/ai/data-checks.tsx</code></td><td><code>DataChecksCard</code> (full and compact)</td></tr><tr><td><code>src/modules/ai/generate.ts</code></td><td>Summary brief and job</td></tr></tbody></table></div></section>
+<div class="pager"><a href="dues-reminder-drafts.html">← Dues reminder drafts</a><span></span></div>
+<footer class="foot">Viking Warriors Team Portal · AI documentation, written from the code in <code>src/modules/ai/</code>.</footer>
+</div>
+</main>
+</div>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, securityLevel: "strict", theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
+</script>
+</body>
+</html>

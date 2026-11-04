@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AiTextCard } from "@/components/ai/ai-text-card";
 import { ChargeStatusBadge, EmptyState, Money, OutcomeBadge, PlayerAvatar, StatTile } from "@/components/shared";
 import { UUID_RE } from "@/components/public/search-params";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getDb } from "@/db";
 import { formatDate } from "@/lib/dates";
 import { average, ballsToOvers, economy, rupees, strikeRate } from "@/lib/format";
+import { getAiTexts } from "@/modules/ai/content";
 import { cricheroesPlayerUrl } from "@/modules/cricheroes/urls";
 import { getChargeRows, getPlayerBalances } from "@/modules/finance/queries";
 import { getPlayer, playerPhoto } from "@/modules/players/queries";
@@ -31,10 +33,11 @@ export default async function PlayerProfilePage(props: PageProps<"/players/[id]"
   const player = await getPlayer(db, id);
   if (!player) notFound();
 
-  const [[stats], log, settings] = await Promise.all([
+  const [[stats], log, settings, insight] = await Promise.all([
     getPlayerStats(db, {}, id),
     getPlayerMatchLog(db, id, 20),
     getSettings(db),
+    getAiTexts(db, "player_insight", id),
   ]);
   const showBalances = settings.public_show_balances;
   const [balances, charges] = showBalances
@@ -64,6 +67,8 @@ export default async function PlayerProfilePage(props: PageProps<"/players/[id]"
           </Button>
         )}
       </section>
+
+      {insight.length > 0 && <AiTextCard texts={insight} label="AI form note" note="Written by AI from this season's scorecards." />}
 
       {!stats ? (
         <EmptyState title="No matches recorded yet">Stats appear once this player features in a synced scorecard.</EmptyState>

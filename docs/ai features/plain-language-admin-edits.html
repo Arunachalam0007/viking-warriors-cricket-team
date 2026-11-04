@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plain-language admin edits · Viking Warriors docs</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side" aria-label="Documentation"><a class="brand" href="../index.html"><span class="logo">VW</span><b>Viking Warriors docs</b></a><h4>Overview</h4><ul><li><a href="../index.html">Project document</a></li></ul><h4>Public pages</h4><ul><li><a href="../pages/dashboard.html">Dashboard</a></li><li><a href="../pages/players.html">Players</a></li><li><a href="../pages/player-profile.html">Player profile</a></li><li><a href="../pages/leaderboard.html">Leaderboard</a></li><li><a href="../pages/matches.html">Matches</a></li><li><a href="../pages/match-detail.html">Match detail</a></li><li><a href="../pages/finance.html">Finance</a></li><li><a href="../pages/reports.html">Reports</a></li><li><a href="../pages/login.html">Admin login</a></li></ul><h4>Admin pages</h4><ul><li><a href="../pages/admin-overview.html">Revenue overview</a></li><li><a href="../pages/admin-match-fees.html">Match fees</a></li><li><a href="../pages/admin-payments.html">Payments</a></li><li><a href="../pages/admin-collections.html">Collections</a></li><li><a href="../pages/admin-expenses.html">Expenses &amp; income</a></li><li><a href="../pages/admin-players.html">Manage players</a></li><li><a href="../pages/admin-sync.html">Sync &amp; logs</a></li><li><a href="../pages/admin-settings.html">Settings</a></li></ul><h4>Features</h4><ul><li><a href="../pages/feature-cricheroes-sync.html">CricHeroes sync</a></li><li><a href="../pages/feature-finance-ledger.html">Finance ledger</a></li><li><a href="../pages/feature-google-sheets.html">Google Sheet mirror</a></li><li><a href="../pages/feature-excel-export.html">Excel export</a></li><li><a href="../pages/feature-nightly-cron.html">Nightly cron</a></li><li><a href="../pages/feature-auth-security.html">Auth &amp; security</a></li></ul><h4>AI features</h4><ul><li><a href="ai-overview.html">AI architecture (overview)</a></li><li><a href="ai-provider-fallback.html">Gemini ⇄ Groq fallback</a></li><li><a href="ai-viking-bot.html">AI-Viking-Bot chatbot</a></li><li><a href="match-summaries.html">AI match reports</a></li><li><a href="performer-writeups.html">Performer write-ups</a></li><li><a href="player-form-insights.html">Player form notes</a></li><li><a href="admin-finance-assistant.html">Admin finance assistant</a></li><li><a href="plain-language-admin-edits.html" aria-current="page">Plain-language admin edits</a></li><li><a href="payment-screenshot-reader.html">Payment screenshot reader</a></li><li><a href="dues-reminder-drafts.html">Dues reminder drafts</a></li><li><a href="post-sync-checks.html">Post-sync data checks</a></li></ul></nav>
+<main>
+<div class="content">
+<header class="top">
+<div class="eyebrow">AI feature</div>
+<h1>Plain-language admin edits</h1>
+<p class="lede">Admins type what to change (“Mark Yogi and Gopi paid for 1 Nov, UPI”); the assistant finds the match and players and shows an exact preview card. Nothing changes until the admin taps Confirm.</p>
+</header>
+<section><h2>Purpose and access</h2><p><span class="pill write">write</span> Admins only, in AI-Viking-Bot Admin mode. Every change runs like a normal admin edit: one transaction, audit entry with the admin as actor (<code>ai.*</code> actions), Google Sheet refresh.</p></section><section><h2>Confirm flow</h2><div class="frame"><pre class="mermaid">
+sequenceDiagram
+  participant A as Admin
+  participant C as Chat panel
+  participant R as /api/ai/chat
+  participant M as Model
+  participant T as Change tool
+  participant D as Postgres
+  A-&gt;&gt;C: Mark Yogi paid for 1 Nov vs K K Guys
+  C-&gt;&gt;R: message
+  R-&gt;&gt;M: tools
+  M-&gt;&gt;R: matches / listPlayers (read)
+  M-&gt;&gt;T: markFeesPaid(matchId, playerIds)
+  T-&gt;&gt;D: needsApproval: read what would change
+  T--&gt;&gt;C: data-preview (names, amounts, holder, date, warnings)
+  T--&gt;&gt;C: approval-requested → Confirm / Cancel card
+  alt Confirm
+    A-&gt;&gt;C: Confirm
+    C-&gt;&gt;R: approval (auto-sent)
+    R-&gt;&gt;T: execute (admin session checked again)
+    T-&gt;&gt;D: transaction + audit ai.match.mark_paid
+    T--&gt;&gt;C: Saved ✓ + one-line answer
+  else Cancel
+    A-&gt;&gt;C: Cancel
+    C-&gt;&gt;R: denial
+    R--&gt;&gt;C: "Okay, cancelled. Nothing was changed." (no model call)
+  end
+</pre></div></section><section><h2>Change tools</h2><div class="table-wrap"><table><thead><tr><th>Tool</th><th>Does</th><th>Same as</th></tr></thead><tbody><tr><td><code>markFeesPaid</code></td><td>Pays the unpaid fees of a match (all, or listed players); mode, holder, date</td><td>Match fees → Mark paid</td></tr><tr><td><code>markFeeUnpaid</code></td><td>Undoes one paid fee</td><td>Charge → Mark unpaid</td></tr><tr><td><code>setPlayed</code></td><td>Played / did not play; fees recalculated</td><td>Roster editor</td></tr><tr><td><code>waiveFee</code></td><td>Waive or charge again one player's fee</td><td>Charge → Waive</td></tr><tr><td><code>recordPayment</code></td><td>Lump sum; settles oldest charges, extra becomes credit</td><td>Payments → Record payment</td></tr><tr><td><code>addExpense</code></td><td>Team expense from a holder's cash</td><td>Expenses → Add</td></tr><tr><td><code>setMatchFee</code></td><td>Chargeable, fee per player, individual / tournament</td><td>Match settings</td></tr></tbody></table></div></section><section><h2>Safety</h2><ul><li>The preview is built by the server from the database, not written by the AI, so the names and amounts on the card are exactly what will be saved.</li><li>Unknown ids or nothing-to-change skip the Confirm card and report the problem (“No player with that id”, “Nobody has an unpaid fee…”).</li><li>Cancel is answered by the server without the model, so the assistant cannot propose the same change again by itself.</li><li>Ledger rules are unchanged: the tools call the same <code>ledger.ts</code> functions as the admin pages.</li></ul></section><section><h2>Database mapping</h2><div class="table-wrap"><table><thead><tr><th>Table</th><th>Used for</th><th>Access</th></tr></thead><tbody><tr><td>charges, payments, payment_allocations, match_players, matches, expenses</td><td>The change</td><td><span class="pill write">write</span></td></tr><tr><td><code>audit_log</code></td><td><code>ai.match.mark_paid</code>, <code>ai.charge.mark_unpaid</code>, <code>ai.match.player.*</code>, <code>ai.charge.waive</code>, <code>ai.payment.record</code>, <code>ai.expense.create</code>, <code>ai.match.finance.update</code></td><td><span class="pill write">write</span></td></tr></tbody></table></div></section><section><h2>Code mapping</h2><div class="table-wrap"><table><thead><tr><th>File</th><th>Role</th></tr></thead><tbody><tr><td><code>src/modules/ai/tools-admin.ts</code></td><td><code>previewThen()</code> (needsApproval + preview), <code>change()</code> (transaction + Sheet), the tools</td></tr><tr><td><code>src/app/api/ai/chat/route.ts</code></td><td><code>allDenied()</code>: cancellation without the model</td></tr><tr><td><code>src/components/ai/ask-viking.tsx</code></td><td><code>ApprovalCard</code> (Confirm this change → Saved / Cancelled)</td></tr><tr><td><code>tests/ai.test.ts</code></td><td>Preview saves nothing; execute saves with audit; unknown ids refused</td></tr></tbody></table></div></section>
+<div class="pager"><a href="admin-finance-assistant.html">← Admin finance assistant</a><a href="payment-screenshot-reader.html">Payment screenshot reader →</a></div>
+<footer class="foot">Viking Warriors Team Portal · AI documentation, written from the code in <code>src/modules/ai/</code>.</footer>
+</div>
+</main>
+</div>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, securityLevel: "strict", theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
+</script>
+</body>
+</html>

@@ -11,6 +11,7 @@ Full docs: `docs/index.html` (architecture) and `docs/pages/*.html` (one per pag
 - `npm run db:migrate` — apply `drizzle/*.sql`; `npm run db:generate -- --name <change>` after editing `src/db/schema.ts`
 - `npm run sync` — run the CricHeroes sync locally (same code as the nightly cron)
 - `npm run sync:agent:install` / `sync:agent:uninstall` — the sync helper service on the team Mac (log: `~/Library/Logs/viking-warriors-sync.log`)
+- `npm run ai:jobs [-- 60]` — write / refresh the AI texts (match reports, write-ups, form notes, data-check summary); also runs after every sync and nightly
 - `npm test` — vitest (parser against saved CricHeroes pages in `tests/fixtures`, sync + ledger on in-memory PGlite)
 - `npm run typecheck`, `npm run lint`
 
@@ -40,5 +41,11 @@ Cloudflare in front of cricheroes.com answers every cloud server (Vercel, GitHub
 - `src/modules/cricheroes/parser.ts` — the only place that knows CricHeroes page structure
 - CricHeroes team link is the admin setting `cricheroes_team_url` (Admin → Settings); the sync takes the site origin and team id from it via `cricheroesTeam()`. Never hard-code the domain or team id — link helpers live in `src/modules/cricheroes/urls.ts`
 
-## Phase 2 (not built yet — wait for the owner)
-AI features and chatbot, WhatsApp reminders (rows go to `notification_outbox`).
+## AI (`src/modules/ai/`, docs in `docs/ai features/`)
+- Every model call goes through `aiModel(feature)` (models.ts): a chain alternating Gemini and Groq models, primary provider first (Admin → AI). Free tiers are tiny (Gemini ≈ 20 requests/day per model, Groq ≈ 8k tokens/min per model), so never call a provider SDK directly and never add a feature without a tier in `TIER`.
+- Pages never call a model: texts are written by `runAiJobs()` (sync helper after each sync, nightly cron, `npm run ai:jobs`) into `ai_content`, from facts in `facts.ts` only. `edited = true` rows are never overwritten.
+- Chat (`/api/ai/chat`): public tools are read-only and expose only what public pages show (no phones, payments detail, expenses, cash holders). Admin change tools use `needsApproval` with a server-built preview; nothing is saved until the admin confirms; changes are audited as `ai.*` and refresh the Sheet.
+- Prompts must keep the team name rule: "Viking Warriors" in English, வைகிங் வாரியர்ஸ் in Tamil.
+
+## Later (wait for the owner)
+Automatic WhatsApp sending of the reminders saved in `notification_outbox`.

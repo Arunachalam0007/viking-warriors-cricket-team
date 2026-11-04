@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AiTextCard } from "@/components/ai/ai-text-card";
 import { EmptyState, PageHeader, PlayerAvatar } from "@/components/shared";
 import { LinkTabs } from "@/components/public/link-tabs";
 import { DATE_RE, flatParams, MONTH_RE } from "@/components/public/search-params";
@@ -9,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getDb } from "@/db";
 import { addDays, formatDate, formatMonth, istMonth, monthDateRange, monthsBetween, todayIst, weekStart } from "@/lib/dates";
 import { economy, strikeRate } from "@/lib/format";
+import { getAiTexts } from "@/modules/ai/content";
 import { getSettings } from "@/modules/settings/settings";
 import { MVP_POINTS } from "@/modules/stats/mvp";
 import { getPlayerStats, type PlayerStats } from "@/modules/stats/queries";
@@ -32,22 +34,26 @@ export default async function LeaderboardPage(props: PageProps<"/leaderboard">) 
   let from: string;
   let to: string;
   let title: string;
+  let writeupKey: string;
   if (period === "week") {
     const week = sp.week && DATE_RE.test(sp.week) ? weekStart(sp.week) : thisWeek;
     from = week;
     to = addDays(week, 6);
     title = `Week of ${formatDate(from, { day: "numeric", month: "short" })}`;
+    writeupKey = `week:${week}`;
   } else if (period === "month") {
     const month = sp.month && MONTH_RE.test(sp.month) ? sp.month : months[0];
     ({ from, to } = monthDateRange(month));
     title = formatMonth(month);
+    writeupKey = `month:${month}`;
   } else {
     from = settings.sync_start_date;
     to = today;
     title = `Season since ${formatDate(from)}`;
+    writeupKey = `season:${from}`;
   }
 
-  const stats = await getPlayerStats(db, { from, to });
+  const [stats, writeup] = await Promise.all([getPlayerStats(db, { from, to }), getAiTexts(db, "period_writeup", writeupKey)]);
   const mvp = [...stats].sort((a, b) => b.mvp - a.mvp || b.runs - a.runs).slice(0, 10);
   const runs = [...stats].filter((s) => s.runs > 0).sort((a, b) => b.runs - a.runs).slice(0, 5);
   const wickets = [...stats]
@@ -98,6 +104,7 @@ export default async function LeaderboardPage(props: PageProps<"/leaderboard">) 
         <EmptyState title="No matches in this period">Pick another week or month.</EmptyState>
       ) : (
         <>
+          {writeup.length > 0 && <AiTextCard texts={writeup} label={period === "week" ? "Weekly top players" : period === "month" ? "Monthly performers" : "Season so far"} note="Written by AI from the scorecards of this period." />}
           <Card>
             <CardHeader>
               <CardTitle className="font-heading text-xl tracking-wide">MVP ranking</CardTitle>

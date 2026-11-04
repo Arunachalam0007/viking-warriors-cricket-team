@@ -1,6 +1,7 @@
 import { ExternalLink, MapPin, Trophy } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AiTextCard } from "@/components/ai/ai-text-card";
 import { ChargeStatusBadge, EmptyState, OutcomeBadge, PlayerAvatar } from "@/components/shared";
 import { UUID_RE } from "@/components/public/search-params";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,7 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { getDb } from "@/db";
 import { formatDateTime } from "@/lib/dates";
 import { ballsToOvers, economy, rupees, strikeRate } from "@/lib/format";
+import { getAiTexts } from "@/modules/ai/content";
 import { cricheroesMatchUrl } from "@/modules/cricheroes/urls";
 import { getChargeRows } from "@/modules/finance/queries";
 import { cricheroesTeam, getSettings } from "@/modules/settings/settings";
@@ -30,7 +32,7 @@ export default async function MatchDetailPage(props: PageProps<"/matches/[id]">)
   if (!detail) notFound();
   const { match, roster } = detail;
 
-  const [settings, charges] = await Promise.all([getSettings(db), getChargeRows(db, { matchId: id })]);
+  const [settings, charges, report] = await Promise.all([getSettings(db), getChargeRows(db, { matchId: id }), getAiTexts(db, "match_summary", id)]);
   const { team_name: teamName, public_show_balances: showBalances } = settings;
   const cricheroesOrigin = cricheroesTeam(settings).origin;
 
@@ -97,6 +99,8 @@ export default async function MatchDetailPage(props: PageProps<"/matches/[id]">)
           )}
         </div>
       </section>
+
+      {report.length > 0 && <AiTextCard texts={report} label="AI match report" note="Written by AI from the CricHeroes scorecard. Tap copy to share it in the team group." />}
 
       {xi.length === 0 ? (
         <EmptyState title={match.status === "past" ? "No playing XI recorded" : "Not played yet"}>

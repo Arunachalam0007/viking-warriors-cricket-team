@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { runAiJobs } from "@/modules/ai/generate";
 import { syncSheet } from "@/modules/sheets/sheets";
 import { syncViaAgent } from "@/modules/sync/queue";
 import { runCricheroesSync } from "@/modules/sync/sync";
@@ -25,6 +26,8 @@ export async function GET(request: NextRequest) {
   }
   // The sheet is rebuilt nightly even if CricHeroes failed, so manual edits made in the app are mirrored.
   result.sheets = await syncSheet("cron");
+  // AI texts need no CricHeroes access, so they also run here (a few per night, inside the time limit)
+  result.ai = await runAiJobs(undefined, { maxCalls: 8, deadlineMs: 35_000 }).catch((e: Error) => ({ error: e.message }));
 
   const failed = typeof result.cricheroes === "object" && result.cricheroes !== null && "error" in result.cricheroes;
   return NextResponse.json(result, { status: failed ? 500 : 200 });

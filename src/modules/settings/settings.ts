@@ -23,21 +23,36 @@ export const SETTING_DEFAULTS = {
   public_show_balances: true,
   /** UPI ID shown on the public dues page (optional) */
   upi_id: "",
+  /** Who collects match fees on GPay (named in WhatsApp reminders) */
+  gpay_name: "Ragul",
+  /** That person's GPay number, printed in every WhatsApp reminder (admin-only; not shown on the public site) */
+  gpay_number: "",
+  /** AI provider tried first; the other one takes over when it is out of quota or down */
+  ai_primary_provider: "gemini",
+  /** Master switch for every AI feature (chat, summaries, scans) */
+  ai_enabled: true,
+  /** The "AI-Viking-Bot" chat for visitors who are not logged in */
+  ai_public_chat: true,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
 export type Settings = { -readonly [K in SettingKey]: (typeof SETTING_DEFAULTS)[K] extends string ? string : (typeof SETTING_DEFAULTS)[K] extends number ? number : boolean };
 
+/** A digits-only text such as a phone number can come back from jsonb as a number: keep the default's type. */
+function asDefaultType(key: SettingKey, value: unknown) {
+  return typeof SETTING_DEFAULTS[key] === "string" && typeof value === "number" ? String(value) : value;
+}
+
 export async function getSettings(db: Executor = getDb()): Promise<Settings> {
   const rows = await db.select().from(settings);
   const out = { ...SETTING_DEFAULTS } as Record<string, unknown>;
-  for (const r of rows) if (r.key in SETTING_DEFAULTS) out[r.key] = r.value;
+  for (const r of rows) if (r.key in SETTING_DEFAULTS) out[r.key] = asDefaultType(r.key as SettingKey, r.value);
   return out as Settings;
 }
 
 export async function getSetting<K extends SettingKey>(key: K, db: Executor = getDb()): Promise<Settings[K]> {
   const rows = await db.select().from(settings).where(inArray(settings.key, [key]));
-  return (rows[0]?.value ?? SETTING_DEFAULTS[key]) as Settings[K];
+  return (rows[0] ? asDefaultType(key, rows[0].value) : SETTING_DEFAULTS[key]) as Settings[K];
 }
 
 export async function saveSettings(values: Partial<Settings>, actor: string, db: Executor = getDb()) {

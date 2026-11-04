@@ -321,6 +321,54 @@ export const notificationOutbox = pgTable("notification_outbox", {
   sentAt: timestamp("sent_at", { withTimezone: true }),
 });
 
+/* ---------- AI (src/modules/ai) ---------- */
+
+// Text the AI wrote once and pages read: match summaries, performer write-ups, player insights,
+// post-sync checks. One row per subject and language (en | ta).
+export const aiContent = pgTable(
+  "ai_content",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // match_summary | period_writeup | player_insight | sync_check
+    kind: text("kind").notNull(),
+    // match id, "week:2026-11-02", "month:2026-11", "season:2026-10-01", player id, "latest"
+    subjectId: text("subject_id").notNull(),
+    lang: text("lang").notNull(),
+    title: text("title"),
+    body: text("body").notNull(),
+    // Hash of the facts the text was written from: regenerated only when the facts change
+    factsHash: text("facts_hash").notNull(),
+    provider: text("provider"),
+    model: text("model"),
+    // Admin edits win: an edited text is never overwritten by the AI
+    edited: boolean("edited").notNull().default(false),
+    hidden: boolean("hidden").notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("ai_content_subject_uq").on(t.kind, t.subjectId, t.lang)],
+);
+
+// One row per model call: which provider answered, tokens, failures. Also the public chat rate limit.
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: serial("id").primaryKey(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    // chat_public | chat_admin | match_summary | period_writeup | player_insight | sync_check | payment_scan | reminder
+    feature: text("feature").notNull(),
+    provider: text("provider").notNull(),
+    model: text("model").notNull(),
+    ok: boolean("ok").notNull(),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    error: text("error"),
+    // Hashed visitor id for public chat limits (never the raw IP)
+    client: text("client"),
+  },
+  (t) => [index("ai_usage_at_idx").on(t.at)],
+);
+
 export type Player = typeof players.$inferSelect;
 export type Match = typeof matches.$inferSelect;
 export type Charge = typeof charges.$inferSelect;

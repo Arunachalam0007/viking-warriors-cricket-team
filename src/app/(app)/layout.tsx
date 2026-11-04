@@ -1,15 +1,21 @@
 import Image from "next/image";
 import Link from "next/link";
+import { AskViking } from "@/components/ai/ask-viking";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { HeaderCricketScene } from "@/components/layout/header-cricket";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { getViewer } from "@/lib/auth";
-import { getSetting } from "@/modules/settings/settings";
+import { configuredProviders } from "@/modules/ai/models";
+import { getSettings } from "@/modules/settings/settings";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
-  const [viewer, teamName] = await Promise.all([getViewer(), getSetting("team_name")]);
+  const [viewer, settings] = await Promise.all([getViewer(), getSettings()]);
+  const teamName = settings.team_name;
+  const isAdmin = viewer?.isAdmin ?? false;
+  // AI-Viking-Bot: on when AI is enabled, a provider key is set, and the public chat is on (admins always)
+  const askViking = settings.ai_enabled && configuredProviders().length > 0 && (settings.ai_public_chat || isAdmin);
   return (
     <SidebarProvider>
       <AppSidebar viewer={viewer} teamName={teamName} />
@@ -27,9 +33,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           </div>
         </header>
         {/* SidebarInset is already the page's <main>. overflow-x-clip: cards sliding in sideways never widen the page. */}
-        <div className="mx-auto w-full max-w-6xl min-w-0 overflow-x-clip px-4 pt-5 pb-24 md:px-6 md:pb-10">{children}</div>
+        <div className="mx-auto w-full max-w-6xl min-w-0 overflow-x-clip px-4 pt-5 pb-24 md:px-6 md:pb-28">{children}</div>
       </SidebarInset>
       <MobileNav />
+      {askViking && <AskViking isAdmin={isAdmin} teamName={teamName} />}
     </SidebarProvider>
   );
 }

@@ -29,7 +29,11 @@ npm run dev         # http://localhost:3000
 2. `npm run db:migrate` — creates tables, enables RLS, seeds admin `arunsha0007@gmail.com` and cash holder `Rahul`.
 3. **Google Sheets**: Google Cloud → enable *Google Sheets API* → create a service account → JSON key. Put `client_email` / `private_key` in env. **Share the sheet with the service account email as Editor.**
 4. **Vercel**: import the GitHub repo, add every variable from `.env.example`, deploy. `vercel.json` sets region `sin1` (next to the Supabase project in Singapore; change both together) and the nightly cron (`CRON_SECRET` protects it).
-5. Give the first admin a password: `npm run admin:password -- arunsha0007@gmail.com` (prints a temporary password). Log in at `/login`, change it in **Admin → My account**, then open **Admin → Sync & logs → Sync now**.
+5. **AI (optional, free)**: `GEMINI_API_KEY` (aistudio.google.com) and `GROQ_API_KEY` (console.groq.com). Either one is enough; with both, each covers for the other. Then `npm run ai:jobs -- 60` writes the first AI texts.
+6. Give the first admin a password: `npm run admin:password -- arunsha0007@gmail.com` (prints a temporary password). Log in at `/login`, change it in **Admin → My account**, then open **Admin → Sync & logs → Sync now**.
+
+## AI features
+AI-Viking-Bot chatbot (Tamil / English, voice), AI match reports, weekly / monthly write-ups, player form notes, admin finance assistant with confirmed edits, payment screenshot reader, WhatsApp dues reminder drafts and post-sync data checks. Free Gemini first, Groq as backup (both ways). Architecture and one page per feature: `docs/ai features/`.
 
 ## Scripts
 | Command | What it does |
@@ -41,4 +45,5 @@ npm run dev         # http://localhost:3000
 | `npm run db:generate` | Create a migration after editing `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations |
 | `npm run sync` | Run the CricHeroes sync once |
+| `npm run ai:jobs [-- 60]` | Write / refresh the AI match reports, write-ups, form notes and data-check summary |
 | `npm run sync:agent:install` | Install the sync helper on this Mac: runs the live site's "Sync now" requests and the nightly sync (`sync:agent:uninstall` removes it) |

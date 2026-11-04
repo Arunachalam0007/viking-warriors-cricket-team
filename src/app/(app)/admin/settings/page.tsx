@@ -64,6 +64,8 @@ export default async function SettingsPage() {
               <StatusRow ok={Boolean(process.env.SUPABASE_SECRET_KEY)} label="Photo uploads (Supabase Storage)" detail="SUPABASE_SECRET_KEY" />
               <StatusRow ok={sheetsConfigured()} label="Google Sheets" detail="GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY" />
               <StatusRow ok={Boolean(process.env.CRON_SECRET)} label="Nightly sync" detail="CRON_SECRET (Vercel Cron, 23:30 IST)" />
+              <StatusRow ok={Boolean(process.env.GEMINI_API_KEY)} label="AI: Google Gemini" detail="GEMINI_API_KEY (free, aistudio.google.com) · Admin → AI" />
+              <StatusRow ok={Boolean(process.env.GROQ_API_KEY)} label="AI: Groq" detail="GROQ_API_KEY (free, console.groq.com) · backup when Gemini is busy" />
             </ul>
           </CardContent>
         </Card>

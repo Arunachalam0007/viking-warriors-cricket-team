@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { rupees } from "@/lib/format";
 import { addAdjustment, recordPaymentAction } from "@/modules/finance/actions";
+import { PaymentScanButton } from "../ai/payment-scan";
 import { useAction } from "../use-action";
 import { PaymentOptions, usePaymentOptions, type HolderOption } from "./payment-options";
 
@@ -47,7 +48,7 @@ function PlayerSelect({ id, players, value, onChange }: { id: string; players: B
   );
 }
 
-export function PaymentsWorkspace({ balances, holders, today }: { balances: BalanceRow[]; holders: HolderOption[]; today: string }) {
+export function PaymentsWorkspace({ balances, holders, today, aiScan }: { balances: BalanceRow[]; holders: HolderOption[]; today: string; aiScan?: boolean }) {
   const [playerId, setPlayerId] = useState("");
   const [amount, setAmount] = useState("");
   const [reference, setReference] = useState("");
@@ -73,10 +74,23 @@ export function PaymentsWorkspace({ balances, holders, today }: { balances: Bala
     <div className="grid gap-5">
       <div ref={formRef} className="scroll-mt-20">
         <Card>
-          <CardHeader>
+          <CardHeader className="has-data-[slot=card-action]:grid-cols-[1fr_auto]">
             <CardTitle className="flex items-center gap-2 font-heading text-2xl tracking-wide">
               <HandCoins className="size-5" /> Record a payment
             </CardTitle>
+            {aiScan && (
+              <div data-slot="card-action" className="row-span-2 self-start">
+                <PaymentScanButton
+                  onApply={(f) => {
+                    if (f.playerId) setPlayerId(f.playerId);
+                    if (f.amount) setAmount(String(f.amount));
+                    setReference(f.reference ?? "");
+                    setNote(f.note ?? "");
+                    setOpts({ ...opts, mode: "upi", paidOn: f.paidOn ?? opts.paidOn });
+                  }}
+                />
+              </div>
+            )}
             <CardDescription>
               Money settles the player&apos;s oldest unpaid fees first. Anything extra is kept as credit and used
               automatically for their next fees.

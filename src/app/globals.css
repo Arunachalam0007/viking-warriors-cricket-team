@@ -273,3 +273,86 @@
   .shot-ball, .shot-bowler, .shot-bowl-arm, .shot-bat, .shot-stumps, .shot-bails, .shot-six, .shot-out { animation-duration: 16s; }
   .shot-ball-spin { animation-duration: 1.2s; }
 }
+
+/* ---------- AI-Viking-Bot (src/components/ai/ask-viking.tsx) ---------- */
+
+/* Launcher: team gradient, a slowly turning colour ring and a soft pulse */
+.ask-viking-launcher { background: linear-gradient(135deg, var(--sidebar-from), var(--sidebar-to)); }
+.ask-viking-ring {
+  background: conic-gradient(from 0deg, oklch(0.85 0.17 85), oklch(0.65 0.22 352), oklch(0.45 0.18 264), oklch(0.85 0.17 85));
+  animation: ask-viking-spin 4s linear infinite;
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+}
+.ask-viking-pulse { animation: ask-viking-pulse 2.6s ease-out infinite; box-shadow: 0 0 0 0 oklch(0.56 0.2 352 / 0.55); }
+@keyframes ask-viking-spin { to { transform: rotate(360deg); } }
+@keyframes ask-viking-pulse {
+  0% { box-shadow: 0 0 0 0 oklch(0.56 0.2 352 / 0.5); }
+  70% { box-shadow: 0 0 0 16px oklch(0.56 0.2 352 / 0); }
+  100% { box-shadow: 0 0 0 0 oklch(0.56 0.2 352 / 0); }
+}
+
+/* Panel header: a light sweep every few seconds */
+.ask-viking-shine {
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.18) 50%, transparent 65%);
+  background-size: 250% 100%;
+  animation: ask-viking-shine 5s ease-in-out infinite;
+}
+@keyframes ask-viking-shine { 0%, 55% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+
+/* "Typing..." dots and the blinking caret while an answer streams in */
+.ask-viking-dots::after { content: ""; animation: ask-viking-dots 1.2s steps(4) infinite; }
+@keyframes ask-viking-dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+.ask-viking-caret {
+  display: inline-block; width: 7px; height: 1em; margin-left: 2px; vertical-align: -2px; border-radius: 2px;
+  background: linear-gradient(var(--sidebar-from), var(--sidebar-to));
+  animation: ask-viking-blink 0.9s steps(2) infinite;
+}
+@keyframes ask-viking-blink { 50% { opacity: 0; } }
+
+/* Tool chips shimmer while a lookup runs */
+.ask-viking-shimmer {
+  background-image: linear-gradient(90deg, transparent 0%, oklch(1 0 0 / 0.55) 50%, transparent 100%);
+  background-size: 200% 100%; background-repeat: no-repeat;
+  animation: ask-viking-sweep 1.4s linear infinite;
+}
+.dark .ask-viking-shimmer { background-image: linear-gradient(90deg, transparent 0%, oklch(1 0 0 / 0.12) 50%, transparent 100%); }
+@keyframes ask-viking-sweep { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+
+/* A red cricket ball with its seam: thinking dots, tool chips, the welcome orbit */
+.cricket-ball {
+  background:
+    linear-gradient(90deg, transparent 44%, oklch(0.95 0.03 80 / 0.9) 45%, oklch(0.95 0.03 80 / 0.9) 55%, transparent 56%),
+    radial-gradient(circle at 32% 30%, oklch(0.72 0.2 28), oklch(0.5 0.2 27) 60%, oklch(0.36 0.15 25));
+  box-shadow: inset -1px -1px 2px rgb(0 0 0 / 0.25);
+}
+.cricket-ball-spin { animation: ask-viking-spin 0.8s linear infinite; }
+.ask-viking-orbit { border: 2px dashed oklch(0.56 0.2 352 / 0.35); }
+
+.ask-viking-scroll { scrollbar-width: thin; }
+
+/* AI-written texts on match / player / leaderboard pages */
+.ai-badge { background: linear-gradient(90deg, var(--sidebar-from), var(--sidebar-to)); }
+.ai-text-card { box-shadow: inset 3px 0 0 0 oklch(0.56 0.2 352 / 0.7); }
+.ai-text-card::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(28rem 10rem at 100% 0%, oklch(0.56 0.2 352 / 0.07), transparent 70%), radial-gradient(24rem 10rem at 0% 100%, oklch(0.33 0.14 264 / 0.06), transparent 70%);
+}
+.ai-scan-line { background: linear-gradient(180deg, transparent, oklch(0.56 0.2 352 / 0.45), transparent); box-shadow: 0 0 12px oklch(0.56 0.2 352 / 0.5); }
+
+/* AI loader in the chat: spinning team ring, glowing core, shimmering text and answer lines */
+.ai-loader-ring { background: conic-gradient(from 0deg, var(--sidebar-from), var(--sidebar-to), oklch(0.85 0.17 85), var(--sidebar-from)); animation: ask-viking-spin 1.2s linear infinite; mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); }
+.ai-loader-core { background: radial-gradient(circle at 35% 30%, oklch(0.7 0.18 352), var(--sidebar-from)); animation: ai-loader-breathe 1.6s ease-in-out infinite; }
+@keyframes ai-loader-breathe { 50% { transform: scale(0.82); filter: brightness(1.25); } }
+.ai-loader-text {
+  background: linear-gradient(90deg, var(--sidebar-from) 0%, var(--sidebar-to) 30%, var(--sidebar-from) 60%);
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: ask-viking-sweep 1.8s linear infinite;
+}
+.dark .ai-loader-text { background-image: linear-gradient(90deg, oklch(0.85 0.06 280) 0%, oklch(0.8 0.15 352) 30%, oklch(0.85 0.06 280) 60%); }
+.ai-loader-line { background: linear-gradient(90deg, var(--muted) 0%, oklch(0.56 0.2 352 / 0.18) 50%, var(--muted) 100%); background-size: 200% 100%; animation: ask-viking-sweep 1.4s linear infinite; }
+
+/* Little equaliser while an answer is read aloud */
+.ask-viking-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; margin-left: 2px; }
+.ask-viking-eq i { width: 2.5px; border-radius: 2px; background: oklch(0.56 0.2 352); animation: ask-viking-eq 0.9s ease-in-out infinite; }
+.ask-viking-eq i:nth-child(2) { animation-delay: 0.15s; } .ask-viking-eq i:nth-child(3) { animation-delay: 0.3s; } .ask-viking-eq i:nth-child(4) { animation-delay: 0.45s; }
+@keyframes ask-viking-eq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
